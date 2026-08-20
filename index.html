@@ -1,0 +1,1848 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>OSCP::PREP — Operator Log</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0B0F14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OSCP Prep">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14;
+    --panel:#111820;
+    --panel-2:#161F29;
+    --panel-3:#1C2733;
+    --border:#232F3B;
+    --border-soft:#1A2530;
+    --amber:#FFB020;
+    --amber-dim:#8A6420;
+    --amber-glow: rgba(255,176,32,0.18);
+    --cyan:#5EC8D8;
+    --green:#4FBF6B;
+    --red:#E5484D;
+    --text:#DCE4EC;
+    --text-dim:#8896A6;
+    --text-faint:#4F5D6E;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  a{color:var(--cyan);}
+  button{font-family:var(--sans);cursor:pointer;}
+  input,select,textarea{font-family:var(--sans);}
+  .app{min-height:100vh;display:flex;flex-direction:column;}
+
+  /* ===== HEADER ===== */
+  .topbar{
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, #0D131A 0%, #0B0F14 100%);
+    padding:14px 22px;
+    display:flex;align-items:center;justify-content:space-between;
+    flex-wrap:wrap;gap:12px;
+    position:sticky;top:0;z-index:50;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);animation:pulse 2.2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .brand-text{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:0.5px;}
+  .brand-text .dim{color:var(--text-dim);font-weight:400;}
+  .headstats{display:flex;gap:10px;flex-wrap:wrap;}
+  .hstat{
+    background:var(--panel);border:1px solid var(--border);border-radius:6px;
+    padding:6px 12px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+    display:flex;flex-direction:column;gap:2px;min-width:88px;
+  }
+  .hstat b{font-size:16px;color:var(--text);font-weight:600;}
+  .hstat b.amber{color:var(--amber);}
+  .hstat b.green{color:var(--green);}
+  .hstat b.red{color:var(--red);}
+
+  /* ===== KILL CHAIN RAIL ===== */
+  .rail-wrap{border-bottom:1px solid var(--border);background:var(--panel);padding:14px 22px;overflow-x:auto;}
+  .rail{display:flex;align-items:center;min-width:max-content;}
+  .rail-seg{display:flex;align-items:center;flex-direction:column;gap:6px;position:relative;padding:0 18px;}
+  .rail-node{
+    width:34px;height:34px;border-radius:6px;border:1.5px solid var(--border);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);
+    font-size:10px;font-weight:700;background:var(--panel-2);color:var(--text-faint);
+    transition:all .2s;
+  }
+  .rail-seg.done .rail-node{background:rgba(79,191,107,0.12);border-color:var(--green);color:var(--green);}
+  .rail-seg.active .rail-node{background:var(--amber-glow);border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px var(--amber-glow);}
+  .rail-label{font-family:var(--mono);font-size:9.5px;letter-spacing:0.6px;color:var(--text-faint);text-transform:uppercase;white-space:nowrap;}
+  .rail-seg.done .rail-label{color:var(--green);}
+  .rail-seg.active .rail-label{color:var(--amber);}
+  .rail-line{width:26px;height:1px;background:var(--border);}
+  .rail-line.done{background:var(--green);}
+
+  /* ===== LAYOUT ===== */
+  .body{display:flex;flex:1;min-height:0;}
+  .sidebar{
+    width:198px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+    padding:16px 10px;
+  }
+  .navitem{
+    display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:6px;
+    font-family:var(--mono);font-size:12.5px;color:var(--text-dim);cursor:pointer;
+    margin-bottom:2px;border:1px solid transparent;transition:all .15s;
+  }
+  .navitem:hover{background:var(--panel-2);color:var(--text);}
+  .navitem.active{background:var(--amber-glow);border-color:var(--amber-dim);color:var(--amber);}
+  .navitem .n{opacity:.55;font-size:10px;}
+  .main{flex:1;min-width:0;padding:24px;overflow-x:hidden;}
+
+  /* ===== MOBILE ===== */
+  @media(max-width:760px){
+    .topbar{padding:12px 14px;gap:8px;position:static;}
+    .brand-text{font-size:13px;}
+    .brand-text .dim{display:block;font-size:10.5px;margin-top:1px;}
+    .headstats{gap:6px;}
+    .hstat{padding:5px 9px;min-width:72px;font-size:9.5px;}
+    .hstat b{font-size:13px;}
+    .rail-wrap{padding:10px 14px;}
+    .rail-seg{padding:0 10px;}
+    .rail-line{width:14px;}
+    .body{flex-direction:column;}
+    .sidebar{
+      width:100%;display:flex;overflow-x:auto;gap:4px;padding:8px 10px;
+      border-right:none;border-bottom:1px solid var(--border);
+      -webkit-overflow-scrolling:touch;
+      position:sticky;top:0;z-index:40;background:var(--panel);
+    }
+    .navitem{flex-shrink:0;margin-bottom:0;white-space:nowrap;}
+    .main{padding:14px;}
+    .grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}
+    .readiness-ring{flex-direction:column;align-items:flex-start;text-align:left;}
+    .day-controls{gap:6px;}
+    .day-controls label{margin-left:0;width:100%;justify-content:flex-start;margin-top:4px;}
+    .dayhead{padding:11px 12px;}
+    .daymeta{gap:6px;}
+    .daybody{padding:0 12px 14px 12px;}
+  }
+  @media(max-width:400px){
+    .headstats{width:100%;justify-content:space-between;}
+    .hstat{min-width:0;flex:1 1 30%;}
+  }
+  .section-title{font-family:var(--mono);font-size:13px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin:0 0 4px 0;}
+  .section-sub{color:var(--text-dim);font-size:13px;margin:0 0 18px 0;}
+
+  /* ===== CARDS / GRID ===== */
+  .grid{display:grid;gap:14px;}
+  .grid-4{grid-template-columns:repeat(4,1fr);}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .grid-2{grid-template-columns:1fr 1fr;}
+  @media(max-width:1000px){.grid-4{grid-template-columns:repeat(2,1fr);}.grid-3{grid-template-columns:repeat(2,1fr);}.grid-2{grid-template-columns:1fr;}}
+  @media(max-width:640px){.grid-4{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;}
+  .card-label{font-family:var(--mono);font-size:10px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+  .card-value{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--text);}
+  .card-value.amber{color:var(--amber);}
+  .card-value.green{color:var(--green);}
+  .card-value.red{color:var(--red);}
+  .card-sub{font-size:11.5px;color:var(--text-dim);margin-top:4px;}
+
+  .readiness-ring{display:flex;align-items:center;gap:20px;}
+  .ring{position:relative;width:112px;height:112px;flex-shrink:0;}
+  .ring svg{transform:rotate(-90deg);}
+  .ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .ring-text b{font-family:var(--mono);font-size:26px;color:var(--amber);}
+  .ring-text span{font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:1px;}
+
+  .barlist{display:flex;flex-direction:column;gap:10px;}
+  .barrow{display:flex;align-items:center;gap:10px;}
+  .barrow .lbl{width:130px;font-size:11.5px;color:var(--text-dim);font-family:var(--mono);flex-shrink:0;}
+  .bartrack{flex:1;height:7px;background:var(--panel-3);border-radius:4px;overflow:hidden;}
+  .barfill{height:100%;background:linear-gradient(90deg,var(--amber-dim),var(--amber));border-radius:4px;}
+  .barval{width:32px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+
+  .tag{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;letter-spacing:.5px;}
+  .tag.weak{background:rgba(229,72,77,0.12);color:var(--red);border:1px solid rgba(229,72,77,.3);}
+  .tag.strong{background:rgba(79,191,107,0.12);color:var(--green);border:1px solid rgba(79,191,107,.3);}
+
+  /* ===== DAY CARDS ===== */
+  .daylist{display:flex;flex-direction:column;gap:10px;}
+  .daycard{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .daycard.today{border-color:var(--amber-dim);box-shadow:0 0 0 1px var(--amber-dim) inset;}
+  .daycard.complete{opacity:.62;}
+  .dayhead{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:10px;flex-wrap:wrap;}
+  .dayhead-left{display:flex;align-items:center;gap:12px;}
+  .daynum{font-family:var(--mono);font-size:11px;color:var(--text-faint);width:44px;flex-shrink:0;}
+  .dayinfo b{display:block;font-size:13.5px;color:var(--text);}
+  .dayinfo span{font-size:11.5px;color:var(--text-dim);}
+  .daymeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .pill{font-family:var(--mono);font-size:9.5px;padding:3px 8px;border-radius:10px;border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;}
+  .pill.phase{background:var(--panel-3);}
+  .progress-mini{width:60px;height:5px;background:var(--panel-3);border-radius:3px;overflow:hidden;}
+  .progress-mini i{display:block;height:100%;background:var(--amber);}
+  .daybody{padding:0 16px 16px 16px;display:none;border-top:1px solid var(--border-soft);}
+  .daybody.open{display:block;}
+  .day-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px;}
+  @media(max-width:800px){.day-cols{grid-template-columns:1fr;}}
+  .day-field{margin-bottom:10px;}
+  .day-field .fl{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px;}
+  .day-field .fv{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .checklist{display:flex;flex-direction:column;gap:7px;margin-top:6px;}
+  .chk{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--text);}
+  .chk input{margin-top:2px;accent-color:var(--amber);cursor:pointer;}
+  .chk.done label{color:var(--text-faint);text-decoration:line-through;}
+  .day-controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .num-input{width:56px;background:var(--panel-3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 6px;font-family:var(--mono);font-size:11.5px;}
+  .sel{background:var(--panel-3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;font-family:var(--mono);font-size:11px;}
+  .txt-notes{width:100%;background:var(--panel-3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 9px;font-size:12px;font-family:var(--sans);resize:vertical;min-height:44px;}
+  .small-lbl{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);margin-right:4px;}
+
+  /* ===== TABLE ===== */
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px;}
+  thead th{
+    background:var(--panel-2);color:var(--text-faint);font-family:var(--mono);font-size:10px;
+    letter-spacing:.6px;text-transform:uppercase;text-align:left;padding:10px 12px;
+    border-bottom:1px solid var(--border);position:sticky;top:0;
+  }
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border-soft);color:var(--text-dim);vertical-align:top;}
+  tbody tr:hover{background:var(--panel-2);}
+  tbody input[type=text],tbody input[type=number],tbody input[type=date],tbody select{
+    background:transparent;border:1px solid transparent;color:var(--text);width:100%;font-family:var(--sans);font-size:12px;padding:3px 4px;border-radius:4px;
+  }
+  tbody input:hover,tbody select:hover,tbody input:focus,tbody select:focus{background:var(--panel-3);border-color:var(--border);outline:none;}
+  .conf-badge{font-family:var(--mono);font-weight:600;}
+  .btn{background:var(--panel-3);border:1px solid var(--border);color:var(--text-dim);padding:6px 12px;border-radius:6px;font-family:var(--mono);font-size:11px;transition:all .15s;}
+  .btn:hover{border-color:var(--amber-dim);color:var(--amber);}
+  .btn.primary{background:var(--amber-glow);border-color:var(--amber-dim);color:var(--amber);}
+  .btn.danger:hover{border-color:var(--red);color:var(--red);}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+
+  .empty-note{padding:30px;text-align:center;color:var(--text-faint);font-family:var(--mono);font-size:12px;border:1px dashed var(--border);border-radius:8px;}
+  .save-indicator{position:fixed;bottom:16px;right:20px;font-family:var(--mono);font-size:10.5px;color:var(--text-faint);background:var(--panel);border:1px solid var(--border);padding:6px 12px;border-radius:20px;opacity:0;transition:opacity .3s;z-index:100;}
+  .save-indicator.show{opacity:1;}
+  .save-indicator.saved{color:var(--green);}
+
+  .banner{background:var(--panel-2);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:6px;padding:12px 16px;font-size:12.5px;color:var(--text-dim);margin-bottom:18px;line-height:1.6;}
+  .banner b{color:var(--text);}
+  .io-btns{display:flex;gap:8px;}
+  .io-btns .btn{font-size:10.5px;padding:6px 10px;}
+  #importFileInput{display:none;}
+  .toast{position:fixed;bottom:16px;left:20px;font-family:var(--mono);font-size:11px;background:var(--panel);border:1px solid var(--border);padding:8px 14px;border-radius:20px;opacity:0;transition:opacity .3s;z-index:100;color:var(--text);}
+  .toast.show{opacity:1;}
+  .toast.err{border-color:var(--red);color:var(--red);}
+  .toast.ok{border-color:var(--green);color:var(--green);}
+  @media(max-width:760px){ .io-btns{flex-wrap:wrap;} }
+
+  /* ===== LIGHT THEME ===== */
+  html.light-theme{
+    --bg:#F5F3EE; --panel:#FFFFFF; --panel-2:#F0EDE5; --panel-3:#E7E2D4;
+    --border:#DCD5C4; --border-soft:#E8E2D2;
+    --amber:#B8681E; --amber-dim:#E3B583; --amber-glow: rgba(184,104,30,0.14);
+    --cyan:#0C7480; --green:#237A48; --red:#B23838;
+    --text:#232A22; --text-dim:#5F6A5C; --text-faint:#98A092;
+  }
+  html.light-theme .ring-text b{color:var(--amber);}
+  html.light-theme ::-webkit-scrollbar-thumb{background:#CFC8B4;}
+
+  /* ===== TODAY FOCUS BANNER ===== */
+  .focus-card{
+    background:linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--amber-dim);border-radius:10px;padding:18px 20px;margin-bottom:16px;
+    display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .focus-eyebrow{font-family:var(--mono);font-size:9.5px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;}
+  .focus-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px;}
+  .focus-sub{font-size:12.5px;color:var(--text-dim);}
+
+  /* ===== XP / LEVEL ===== */
+  .xp-row{display:flex;align-items:center;gap:14px;}
+  .xp-badge{
+    width:52px;height:52px;border-radius:10px;background:var(--amber-glow);border:1.5px solid var(--amber-dim);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .xp-badge b{font-family:var(--mono);font-size:18px;color:var(--amber);line-height:1;}
+  .xp-badge span{font-family:var(--mono);font-size:7.5px;color:var(--text-faint);letter-spacing:.5px;}
+  .xp-bar-track{flex:1;height:8px;background:var(--panel-3);border-radius:5px;overflow:hidden;}
+  .xp-bar-fill{height:100%;background:linear-gradient(90deg,var(--amber-dim),var(--amber));border-radius:5px;transition:width .3s;}
+
+  /* ===== HEATMAP ===== */
+  .heatmap{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;margin-top:6px;}
+  .heat-cell{aspect-ratio:1;border-radius:3px;background:var(--panel-3);}
+  .heat-cell[data-lvl="1"]{background:var(--amber-dim);opacity:.5;}
+  .heat-cell[data-lvl="2"]{background:var(--amber-dim);}
+  .heat-cell[data-lvl="3"]{background:var(--amber);}
+  .heatmap-legend{display:flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--mono);font-size:9.5px;color:var(--text-faint);}
+  .heatmap-legend .heat-cell{width:10px;height:10px;flex:none;}
+
+  /* ===== SEARCH ===== */
+  .search-input{background:var(--panel-3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;font-family:var(--mono);font-size:11.5px;width:220px;}
+  .search-input::placeholder{color:var(--text-faint);}
+
+  /* ===== TIMER ===== */
+  .timer-btn{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:var(--panel-3);color:var(--text-dim);}
+  .timer-btn.running{background:rgba(229,72,77,0.12);border-color:var(--red);color:var(--red);animation:pulse 1.6s infinite;}
+  .timer-display{font-family:var(--mono);font-size:11px;color:var(--amber);min-width:52px;display:inline-block;}
+
+  /* ===== ICON BUTTONS ===== */
+  .icon-btn{background:var(--panel);border:1px solid var(--border);color:var(--text-dim);width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+  .icon-btn:hover{border-color:var(--amber-dim);color:var(--amber);}
+
+  /* ===== KEYBOARD HINT ===== */
+  .kbd-hint{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:10px;}
+  .kbd-hint kbd{background:var(--panel-3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-family:var(--mono);}
+
+  /* ===== PRINT ===== */
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{position:absolute;top:0;left:0;width:100%;padding:20px;color:#000;}
+    #printArea .fl{font-weight:700;margin-top:10px;}
+    #printArea .fv{margin-bottom:6px;}
+  }
+
+  /* ===== PIN MODAL ===== */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(6,8,11,0.86);z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    backdrop-filter:blur(3px);
+  }
+  .modal-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:28px 26px;max-width:400px;width:100%;
+  }
+  .modal-eyebrow{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;}
+  .modal-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:10px;}
+  .modal-body{font-size:12.5px;color:var(--text-dim);line-height:1.6;margin-bottom:16px;}
+  .modal-body b{color:var(--text);}
+  .modal-input{
+    width:100%;background:var(--panel-3);border:1px solid var(--border);color:var(--text);
+    border-radius:7px;padding:11px 13px;font-family:var(--mono);font-size:14px;margin-bottom:12px;
+    letter-spacing:1px;
+  }
+  .modal-input:focus{outline:none;border-color:var(--amber-dim);}
+  .modal-actions{display:flex;gap:8px;}
+  .modal-actions .btn{flex:1;justify-content:center;text-align:center;padding:10px;font-size:12px;}
+  .modal-error{color:var(--red);font-family:var(--mono);font-size:11px;margin-bottom:10px;min-height:14px;}
+
+  /* ===== ONLINE/OFFLINE ===== */
+  .conn-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;}
+  .conn-dot.online{background:var(--green);}
+  .conn-dot.offline{background:var(--red);}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="save-indicator" id="saveIndicator">saving…</div>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFileInput" accept=".xlsx">
+
+
+<script>
+/* =========================================================
+   DATA MODEL
+   ========================================================= */
+const PHASES = ["Foundations","Enumeration","Initial Access","Web Exploitation","Linux Privesc","Windows Privesc","Active Directory","Password Attacks","Client-Side Attacks","Exploit Dev Basics","Post-Exploitation","Full Attack Chains","OSCP Lab Practice","Mock Exams","Exam Prep"];
+const PHASE_SHORT = ["FOUND","ENUM","INIT-AX","WEB","LNX-PE","WIN-PE","AD","PASS","CLIENT","EXP-DEV","POST-EX","CHAINS","LABS","MOCKS","EXAM"];
+
+function defaultState(){
+  const today = new Date();
+  const start = today.toISOString().slice(0,10);
+  return {
+    meta:{
+      startDate:start,
+      examDate:"2027-06-01",
+      currentDay:1,
+      streak:0,
+      missedDays:0
+    },
+    settings:{
+      theme:"dark",
+      sound:true
+    },
+    days: buildPhase1Days(),
+    skills: defaultSkills(),
+    labs: [],
+    commands: defaultCommands(),
+    weaknesses: [],
+    weeklyReviews: [],
+    mocks: [
+      {id:1, phase:"Early Diagnostic", plannedWhen:"~ Week 10 (after Enumeration+Web phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check — expect a rough result. Purpose is diagnostic, not a pass/fail judgment."},
+      {id:2, phase:"Mid-Preparation", plannedWhen:"~ Week 26 (after AD + Privesc phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Should show clear improvement in independent enumeration and AD."},
+      {id:3, phase:"Final OSCP Simulation", plannedWhen:"2-3 weeks before exam date", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Full 23h45m timed simulation + report write-up within 24h of finishing."}
+    ]
+  };
+}
+
+function defaultSkills(){
+  const rows = [
+    ["Networking fundamentals","Beginner"],["Linux CLI","Beginner"],["Windows fundamentals","Beginner"],
+    ["Nmap","Beginner"],["Enumeration methodology","Beginner"],["Web enumeration","Beginner"],
+    ["HTTP protocol","Beginner"],["Burp Suite","Beginner"],["SQL Injection","Beginner"],["XSS","Beginner"],
+    ["File upload attacks","Beginner"],["LFI / RFI","Beginner"],["Command Injection","Beginner"],["SSRF","Beginner"],
+    ["Authentication attacks","Beginner"],["Password attacks","Beginner"],["SMB","Beginner"],["FTP","Beginner"],
+    ["SSH","Beginner"],["WinRM","Beginner"],["RDP","Beginner"],["Linux Privilege Escalation","Beginner"],
+    ["Windows Privilege Escalation","Beginner"],["Active Directory basics","Beginner"],["Kerberoasting","Beginner"],
+    ["AS-REP Roasting","Beginner"],["BloodHound","Beginner"],["LDAP","Beginner"],["PowerShell","Beginner"],
+    ["Pivoting","Beginner"],["Tunneling","Beginner"],["Port Forwarding","Beginner"],["Credential Dumping","Beginner"],
+    ["Post-Exploitation","Beginner"],["Metasploit (when NOT to use)","Beginner"],["Manual Exploitation","Beginner"],
+    ["Buffer Overflow","Beginner"],["Python scripting","Beginner"],["Bash scripting","Beginner"],
+    ["PowerShell scripting","Beginner"],["Report Writing","Beginner"]
+  ];
+  return rows.map((r,i)=>({id:i+1,name:r[0],level:r[1],confidence:0,target:4,practiceCount:0,lastPracticed:"",status:"Not started"}));
+}
+
+function defaultCommands(){
+  const c = [
+    ["Nmap","nmap -sC -sV -oN scan.txt <ip>","Default scripts + version detection","First pass on any target","nmap -sC -sV -oN scan.txt 10.10.10.5","Core — every engagement",false],
+    ["Nmap","nmap -p- -T4 -oN allports.txt <ip>","Full TCP port sweep","After initial scan, to catch non-default ports","nmap -p- -T4 -oN allports.txt 10.10.10.5","Core — every engagement",false],
+    ["Linux","find / -perm -4000 2>/dev/null","Find SUID binaries","Linux privesc enumeration","find / -perm -4000 2>/dev/null","High",false],
+    ["Linux","sudo -l","List sudo permissions for current user","Linux privesc enumeration","sudo -l","High",false],
+    ["Windows","whoami /priv","List current user privileges","Windows privesc enumeration","whoami /priv","High",false],
+    ["Windows","systeminfo","Full OS/patch info","Identify missing patches for exploit search","systeminfo","High",false],
+    ["SMB","smbclient -L //<ip>/ -N","List SMB shares anonymously","Early enumeration","smbclient -L //10.10.10.5/ -N","High",false],
+    ["SMB","enum4linux -a <ip>","Full SMB/NetBIOS enumeration","AD/Windows targets","enum4linux -a 10.10.10.5","High",false],
+    ["HTTP","ffuf -u http://<ip>/FUZZ -w wordlist.txt","Directory/file fuzzing","Web enumeration","ffuf -u http://10.10.10.5/FUZZ -w /usr/share/wordlists/dirb/common.txt","Core — web boxes",false],
+    ["HTTP","gobuster dir -u http://<ip> -w wordlist.txt","Directory brute-forcing","Web enumeration alternative to ffuf","gobuster dir -u http://10.10.10.5 -w common.txt","Core — web boxes",false],
+    ["Netcat","nc -lvnp <port>","Set up a listener","Catching reverse shells","nc -lvnp 4444","Core — every exploitation",false],
+    ["LDAP","ldapsearch -x -H ldap://<ip> -b \"dc=domain,dc=com\"","Anonymous LDAP enumeration","AD enumeration","ldapsearch -x -H ldap://10.10.10.5 -b \"dc=corp,dc=com\"","High — AD phase",false],
+    ["Kerberos","GetUserSPNs.py domain/user:pass -dc-ip <ip> -request","Kerberoasting","Extract crackable service ticket hashes","GetUserSPNs.py corp.com/user:pass -dc-ip 10.10.10.5 -request","High — AD phase",false],
+    ["Impacket","psexec.py domain/user:pass@<ip>","Remote command execution via SMB","Lateral movement / access with valid creds","psexec.py corp.com/admin:pass@10.10.10.5","High — AD phase",false],
+    ["Hashcat","hashcat -m 1000 hash.txt rockyou.txt","Crack NTLM hashes","Password cracking after dumping hashes","hashcat -m 1000 hashes.txt rockyou.txt","High",false],
+    ["Pivoting","chisel client <attacker>:<port> R:socks","Reverse SOCKS pivot","Access internal network segment from foothold","chisel client 10.10.14.2:8000 R:socks","Medium — later phases",false],
+    ["SSH","ssh -L 8080:127.0.0.1:80 user@<ip>","Local port forward via SSH","Access internal service through jump host","ssh -L 8080:127.0.0.1:80 user@10.10.10.5","Medium",false],
+    ["PowerShell","Get-Process | Where {$_.Path -like \"*.exe\"}","Enumerate running processes","Windows post-exploitation","Get-Process","Medium",false]
+  ];
+  return c.map((r,i)=>({id:i+1,category:r[0],command:r[1],purpose:r[2],whenToUse:r[3],example:r[4],relevance:r[5],practiced:r[6]}));
+}
+
+function buildPhase1Days(){
+  const D = [];
+  const mk = (day,objective,topic,subtopics,theory,practical,lab,tools,tasks,est,priority,difficulty)=>({
+    id:day, day, phase:"Foundations", objective, topic, subtopics, theory, practical, lab, tools,
+    tasks: tasks.map((t,i)=>({id:day+"-"+i, text:t, done:false})),
+    estHours:est, actHours:"", priority, difficulty, confidence:0,
+    status:"Not started", notes:"", completed:false, completedDate:"", timerStart:""
+  });
+
+  // Week 1 — Networking, with deliberate retention drills since this is the stated weak point
+  D.push(mk(1,"Understand how data actually moves across a network","TCP/IP fundamentals","OSI vs TCP/IP model, IP addressing, subnetting basics",
+    "Watch one short video on the TCP/IP model + OSI layers (pick ONE course, don't stack multiple).",
+    "Draw the TCP/IP model from memory (no notes). Then explain out loud, in your own words, what happens when you visit a website.",
+    "None — theory + self-test day","Pen & paper / whiteboard app",
+    ["Watch TCP/IP model video (max 30 min)","Draw the 4-layer model from memory","Explain HTTP request flow out loud in your own words","Write 5-line summary in your own notes app","Self-test: can you explain it without looking? (yes/no)"],1.5,"High","Easy"));
+
+  D.push(mk(2,"Understand IP addressing and subnetting well enough to calculate manually","Subnetting","IPv4 addressing, CIDR notation, subnet masks",
+    "Read/watch a short subnetting explainer (15-20 min max).",
+    "Manually calculate 5 subnetting problems WITHOUT a subnet calculator. Check answers only after attempting.",
+    "None","subnetting practice site (manual first, verify after)",
+    ["Learn CIDR notation basics","Manually solve subnet problem #1-5 on paper","Check answers, note mistakes","Redo any problem you got wrong","Write down the ONE rule that keeps confusing you"],1.5,"High","Medium"));
+
+  D.push(mk(3,"Retention drill — recall Day 1-2 content without new material","Retention check (Networking)","TCP/IP recap, subnetting recap",
+    "No new theory today — this is deliberate.",
+    "Blind recall test: redraw TCP/IP model from memory, redo 3 subnetting problems from memory, no notes.",
+    "None","Pen & paper",
+    ["Redraw TCP/IP model from pure memory","Redo 3 subnetting problems from memory","Compare against Day 1-2 notes — what did you forget?","Write down exactly what you forgot (this feeds Weakness Tracker)"],1,"High","Medium"));
+
+  D.push(mk(4,"Learn the protocols you'll see on almost every OSCP box","Core protocols","SMB, FTP, SSH, HTTP, DNS — what each does and its default port",
+    "Read a short reference on SMB/FTP/SSH/HTTP/DNS — what each protocol is FOR, not just port numbers.",
+    "Make yourself a one-page protocol cheat sheet (port, purpose, common risk) — in your own words, not copy-pasted.",
+    "None","Notes app",
+    ["Learn SMB purpose + default port","Learn FTP purpose + default port","Learn SSH purpose + default port","Learn HTTP/HTTPS purpose + default port","Learn DNS purpose + default port","Build your own 1-page cheat sheet"],2,"High","Easy"));
+
+  D.push(mk(5,"See these protocols in action, not just in theory","Protocols — hands-on intro","Connecting to services from the CLI",
+    "Skim how to connect to FTP/SSH from a Linux terminal (5-10 min).",
+    "In a THM/TryHackMe free room or local VM: connect to an FTP server anonymously, SSH into something, and note what you see.",
+    "TryHackMe free intro networking room","ftp, ssh clients",
+    ["Anonymous FTP login attempt","SSH connection attempt","Note exactly what output/banners you see","Write 3 lines: what info did the banner leak?"],1.5,"Medium","Medium"));
+
+  D.push(mk(6,"Weekend — deeper practice with more time","Networking applied","Full protocol walkthrough on a real lab machine",
+    "No new theory — apply everything from this week.",
+    "Pick ONE easy TryHackMe networking-focused room. Attempt enumeration of services WITHOUT looking at the walkthrough first. Only check walkthrough after you've genuinely tried for 30+ min.",
+    "TryHackMe — easy networking room","nmap (basic), ftp, ssh",
+    ["Attempt independently for 30+ min minimum","Note where exactly you got stuck","THEN check walkthrough only for that stuck point","Write down: what would you do differently next time?"],2.5,"High","Medium"));
+
+  D.push(mk(7,"Week 1 retention + weak point log","Week 1 review","Networking recap and gap analysis",
+    "None.",
+    "Full blind recall: TCP/IP model, subnetting (2 problems), protocol cheat sheet from memory. Grade yourself honestly.",
+    "None","Pen & paper",
+    ["Blind recall TCP/IP model","Blind recall 2 subnetting problems","Blind recall protocol cheat sheet (5 protocols)","Score yourself 0-5 confidence per topic","Log anything under 3/5 confidence as a weak point"],2,"High","Medium"));
+
+  // Week 2 — Linux fundamentals, hands-on heavy since stated as near-zero
+  D.push(mk(8,"Move beyond cd/pwd — build real filesystem fluency","Linux CLI basics","Filesystem navigation, file operations, permissions intro",
+    "Skim a Linux basics reference for ls, cp, mv, rm, cat, less, file permissions (chmod numbers).",
+    "In a Linux VM/terminal: create a directory tree, move/copy/delete files, chmod a file to different permission levels, and explain what each permission number means.",
+    "Local Linux VM or TryHackMe Linux fundamentals room","bash",
+    ["ls -la, cd, pwd, mkdir, touch practice","cp, mv, rm on real files","chmod 755 / 644 / 700 — explain what each does","cat, less, head, tail on a text file","Write your own 10-command cheat sheet"],2,"High","Easy"));
+
+  D.push(mk(9,"Understand users, permissions, and processes","Linux users & processes","whoami, id, ps, users, groups, permission model",
+    "Skim how Linux users/groups/permissions relate (10-15 min).",
+    "On your VM: check current user with whoami/id, list running processes with ps aux, list users on the system, and explain in your own words what a permission bit means for privesc later.",
+    "Local Linux VM","whoami, id, ps, cat /etc/passwd",
+    ["whoami, id — read the output correctly","ps aux — identify what's running","cat /etc/passwd — list all users","Explain: why would an attacker care about this?"],1.5,"High","Easy"));
+
+  D.push(mk(10,"Retention drill — Linux basics","Retention check (Linux)","Recall Day 8-9 commands without reference",
+    "None.",
+    "Blind test: from memory, list 15 Linux commands and what they do. Then do 3 filesystem tasks in the VM without looking anything up.",
+    "Local Linux VM","bash",
+    ["Write 15 Linux commands from memory with purpose","Attempt 3 filesystem tasks with zero reference","Note every command you forgot","Log gaps for revision"],1.5,"High","Medium"));
+
+  D.push(mk(11,"Learn Bash scripting basics — you'll need this constantly","Bash scripting intro","Variables, loops, simple scripts",
+    "Skim a short bash scripting basics guide (variables, if, for loop) — 15-20 min.",
+    "Write ONE simple bash script yourself: a script that pings a list of 5 IPs and prints which ones respond. Do not copy-paste — type every line.",
+    "Local terminal","bash, ping",
+    ["Learn variable syntax in bash","Learn a basic for loop","Write a 5-IP ping-sweep script by hand","Run it, fix errors yourself before asking for help"],2,"Medium","Medium"));
+
+  D.push(mk(12,"Services and cron — common privesc territory later","Linux services & cron","systemctl basics, crontab, scheduled tasks",
+    "Skim what services/cron jobs are and why they matter for privilege escalation (10 min).",
+    "On your VM: list running services with systemctl list-units, view your crontab, and write 2 lines on why a misconfigured cron job could be a privesc path.",
+    "Local Linux VM","systemctl, crontab -l",
+    ["systemctl list-units --type=service","crontab -l (view scheduled tasks)","cat /etc/crontab","Write 2 lines: why does this matter for privesc?"],1.5,"Medium","Medium"));
+
+  D.push(mk(13,"Apply Linux skills against a real (easy) target","Linux applied","SSH into an easy lab box and explore independently",
+    "No new theory.",
+    "Pick an easy TryHackMe/VulnHub Linux box. SSH in (or get initial access if it requires that), then explore the filesystem, check permissions, and look for anything interesting — WITHOUT using LinPEAS yet, just your own eyes.",
+    "TryHackMe/VulnHub easy Linux box","bash, ssh, find",
+    ["Get access to the box","Manually explore filesystem (no automated tools yet)","Check sudo -l, SUID binaries manually","Note anything suspicious you found","Only after 30+ min, compare against a writeup if stuck"],2.5,"High","Medium"));
+
+  D.push(mk(14,"Week 2 retention + weak point log","Week 2 review","Linux recap and gap analysis",
+    "None.",
+    "Blind recall: 15 Linux commands, permission model, one thing about services/cron. Grade yourself honestly 0-5 per topic.",
+    "None","Pen & paper",
+    ["Blind recall 15 Linux commands","Blind recall permission numbers (chmod)","Blind recall services/cron relevance to privesc","Score confidence 0-5 per topic","Log anything under 3/5 as weak point"],2,"High","Medium"));
+
+  // Week 3 — Enumeration methodology, Nmap for real, intro tools, first independent attempt
+  D.push(mk(15,"Stop copy-pasting Nmap — understand every flag you type","Nmap deep dive","TCP scan, UDP scan, service/version detection, timing, output formats",
+    "Read Nmap's own basic usage docs for -sC, -sV, -sS, -sU, -p-, -T4, -oN/-oA — understand WHY each flag exists.",
+    "Run a full scan against a lab target and, for every flag used, write one sentence explaining what it does and why you chose it.",
+    "TryHackMe/VulnHub target","nmap",
+    ["-sC -sV scan with explanation of each flag","-p- full port scan","-sU UDP scan (top ports)","Explain -oN vs -oA output formats","Write your own annotated Nmap cheat sheet"],2,"High","Medium"));
+
+  D.push(mk(16,"Learn Nmap Scripting Engine (NSE) basics","NSE basics","Common useful scripts (vuln, default, smb-enum, http-enum)",
+    "Skim NSE categories and 3-4 commonly useful scripts (10-15 min).",
+    "Run --script=default,vuln against a lab target. Read the output and explain in your own words what 2 findings mean.",
+    "TryHackMe/VulnHub target","nmap --script",
+    ["Learn NSE script categories","Run default + vuln scripts against a target","Pick 2 findings and explain them in your own words","Note anything you didn't understand"],1.5,"Medium","Medium"));
+
+  D.push(mk(17,"Move from port scan to attack surface thinking","Enumeration methodology","Turning scan results into a plan of attack",
+    "Skim a short guide on 'enumeration methodology' — the idea of going service by service, not randomly.",
+    "Take yesterday's scan results and, for EACH open port, write what you would check next and why (before actually doing it).",
+    "Same target as Day 15-16","nmap, notes",
+    ["List every open port from your scan","For each port: what service, what's the next enumeration step, why","Prioritize which port to investigate first and justify it","This becomes your enumeration checklist template"],2,"High","Medium"));
+
+  D.push(mk(18,"First hands-on with ffuf and Gobuster — properly this time","Web enumeration tools","ffuf and Gobuster for directory/file fuzzing",
+    "Skim ffuf and Gobuster basic syntax (10 min) — you've heard the names, now actually use them.",
+    "Run ffuf AND Gobuster against a lab web target with a real wordlist. Compare results. Explain in your own words what a 200 vs 403 vs 301 response means.",
+    "TryHackMe/VulnHub web target","ffuf, gobuster",
+    ["Run ffuf directory fuzzing on target","Run gobuster directory fuzzing same target","Compare results — did they differ?","Explain HTTP status codes 200/301/403/404 in your own words"],2,"High","Medium"));
+
+  D.push(mk(19,"Netcat fundamentals — you'll use this every single engagement","Netcat basics","Listeners, banner grabbing, simple shells",
+    "Skim Netcat basic usage (10 min).",
+    "Set up a Netcat listener, connect to it from another terminal, and manually banner-grab 2 services on a lab target using nc.",
+    "Local VM + lab target","netcat",
+    ["Set up nc -lvnp listener","Connect from a second terminal, send a message","Banner-grab 2 open services using nc <ip> <port>","Write down what info banner grabbing revealed"],1.5,"Medium","Medium"));
+
+  D.push(mk(20,"Timed independent enumeration exercise — no help allowed","Independent enumeration","Full enumeration of a new, unseen target within a time box",
+    "None — this is a practical test day.",
+    "Pick a NEW easy TryHackMe/VulnHub box you have not seen before. Set a 45-minute timer. Enumerate it fully (nmap, NSE, ffuf/gobuster, manual checks) with ZERO help — no ChatGPT, no walkthrough. Stop when the timer ends regardless of outcome.",
+    "New, unseen easy box","nmap, ffuf/gobuster, netcat",
+    ["Set a 45-min timer before starting","Full enumeration attempt — no external help","Stop exactly at 45 min, note where you got to","Write down: what would have taken too long in a real exam?","Log this as your first honest independent-enumeration data point"],3,"High","Medium"));
+
+  D.push(mk(21,"Phase 1 Assessment — Foundations","Phase Assessment","Practical checkpoint before moving to Enumeration phase",
+    "Review Week 1-3 notes briefly.",
+    "Complete the Phase Assessment checklist below. Be honest — this determines whether Phase 2 starts on schedule or gets a remediation week inserted first.",
+    "Any easy, previously unseen box","Full toolkit so far",
+    ["[ASSESSMENT] Enumerate an unknown target within 30 minutes","[ASSESSMENT] Correctly identify likely attack surface from scan results","[ASSESSMENT] Explain TCP/IP + subnetting without notes","[ASSESSMENT] Navigate Linux filesystem + permissions without notes","[ASSESSMENT] Explain every Nmap flag you used, unprompted","Mark PASS only if you did these with genuinely minimal hesitation"],2,"High","Hard"));
+
+  return D;
+}
+
+/* =========================================================
+   STORAGE — PIN-synced (Cloudflare KV) + local cache fallback
+   ========================================================= */
+let state = null;
+let saveTimer = null;
+let PIN = localStorage.getItem("oscp_pin") || "";
+const API_BASE = "/api/data";
+
+function cacheKey(){ return "oscp_cache_" + PIN; }
+
+function ensurePin(){
+  return new Promise((resolve)=>{
+    if(PIN){ resolve(); return; }
+    showPinModal(resolve);
+  });
+}
+
+function showPinModal(onDone){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-eyebrow">Sync Setup</div>
+      <div class="modal-title">Set your sync PIN</div>
+      <div class="modal-body">This PIN links your data across every device — phone, laptop, anywhere.
+        <b>First time?</b> Make one up (6+ characters, letters/numbers). <b>Already have one</b> from another device? Enter it here to pull your existing data. Write it down — it's the only way back in.</div>
+      <input type="text" class="modal-input" id="pinModalInput" placeholder="e.g. yash-oscp-2026" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="modal-error" id="pinModalError"></div>
+      <div class="modal-actions">
+        <button class="btn primary" id="pinModalGo">Continue →</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector('#pinModalInput');
+  const err = overlay.querySelector('#pinModalError');
+  input.focus();
+  const submit = ()=>{
+    const val = input.value.trim();
+    if(!/^[a-zA-Z0-9\-_]{6,64}$/.test(val)){
+      err.textContent = 'Use 6+ characters — letters, numbers, - or _ only.';
+      return;
+    }
+    PIN = val;
+    localStorage.setItem("oscp_pin", PIN);
+    document.body.removeChild(overlay);
+    onDone();
+  };
+  overlay.querySelector('#pinModalGo').onclick = submit;
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') submit(); });
+}
+
+async function loadState(){
+  await ensurePin();
+  let loadedFromCloud = false;
+  try{
+    const res = await fetch(`${API_BASE}?pin=${encodeURIComponent(PIN)}`, {cache:'no-store'});
+    const json = await res.json();
+    if(json && json.exists === false){
+      const cached = localStorage.getItem(cacheKey());
+      state = cached ? JSON.parse(cached) : defaultState();
+    } else if(json && !json.error){
+      state = json;
+      loadedFromCloud = true;
+    } else {
+      const cached = localStorage.getItem(cacheKey());
+      state = cached ? JSON.parse(cached) : defaultState();
+    }
+  }catch(e){
+    const cached = localStorage.getItem(cacheKey());
+    state = cached ? JSON.parse(cached) : defaultState();
+  }
+  migrateState();
+  localStorage.setItem(cacheKey(), JSON.stringify(state));
+  if(!loadedFromCloud) queueSave();
+}
+
+function migrateState(){
+  if(!state.settings) state.settings = {theme:"dark", sound:true};
+  if(state.settings.sound===undefined) state.settings.sound = true;
+  if(!state.settings.theme) state.settings.theme = "dark";
+  (state.days||[]).forEach(d=>{
+    if(d.completedDate===undefined) d.completedDate = "";
+    if(d.timerStart===undefined) d.timerStart = "";
+  });
+}
+
+function queueSave(){
+  const ind = document.getElementById('saveIndicator');
+  if(ind){
+    ind.textContent = 'saving…';
+    ind.classList.remove('saved');
+    ind.classList.add('show');
+  }
+  localStorage.setItem(cacheKey(), JSON.stringify(state));
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      const res = await fetch(API_BASE, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({pin:PIN, data:state})
+      });
+      const json = await res.json();
+      if(!ind) return;
+      if(json && json.ok){
+        ind.textContent = 'synced ✓';
+        ind.classList.add('saved');
+      } else {
+        ind.textContent = 'saved locally — sync pending';
+      }
+      setTimeout(()=>ind.classList.remove('show'), 1400);
+    }catch(e){
+      if(ind) ind.textContent = 'offline — saved locally';
+    }
+  }, 500);
+}
+
+/* =========================================================
+   COMPUTED METRICS
+   ========================================================= */
+function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+
+function computeMetrics(){
+  const today = new Date().toISOString().slice(0,10);
+  const days = state.days;
+  const totalDays = days.length;
+  const completedDays = days.filter(d=>d.completed).length;
+  const totalTasks = days.reduce((s,d)=>s+d.tasks.length,0);
+  const doneTasks = days.reduce((s,d)=>s+d.tasks.filter(t=>t.done).length,0);
+  const totalHoursPlanned = days.reduce((s,d)=>s+(parseFloat(d.estHours)||0),0);
+  const totalHoursActual = days.reduce((s,d)=>s+(parseFloat(d.actHours)||0),0);
+
+  // streak: consecutive completed days from the start
+  let streak = 0;
+  for(const d of days){ if(d.completed) streak++; else break; }
+
+  const daysRemaining = daysBetween(today, state.meta.examDate);
+
+  // readiness score — weighted blend of skill confidence (60%), independent lab completion (25%), mock exam perf (15%)
+  const skillAvg = state.skills.length ? state.skills.reduce((s,k)=>s+ (parseFloat(k.confidence)||0),0)/state.skills.length : 0; // 0-5
+  const skillScore = (skillAvg/5)*100;
+
+  const labs = state.labs;
+  let labScore = 0;
+  if(labs.length){
+    const independentPts = labs.reduce((s,l)=>{
+      const help = parseInt(l.hintsUsed)||0;
+      if(help===0) return s+100;
+      if(help===1) return s+70;
+      if(help===2) return s+40;
+      return s+10;
+    },0);
+    labScore = independentPts/labs.length;
+  }
+
+  const mocks = state.mocks.filter(m=>m.status==="Completed");
+  let mockScore = 0;
+  if(mocks.length){
+    mockScore = mocks.reduce((s,m)=>{
+      const attempted = parseFloat(m.attempted)||0;
+      const rooted = parseFloat(m.rooted)||0;
+      return s + (attempted>0 ? (rooted/attempted)*100 : 0);
+    },0)/mocks.length;
+  }
+
+  const readiness = Math.round(skillScore*0.6 + labScore*0.25 + mockScore*0.15);
+
+  const weak = state.skills.filter(k=>parseFloat(k.confidence)<=2).sort((a,b)=>a.confidence-b.confidence).slice(0,5);
+  const strong = state.skills.filter(k=>parseFloat(k.confidence)>=4).sort((a,b)=>b.confidence-a.confidence).slice(0,5);
+
+  // current phase = phase of first non-completed day, else last phase
+  const firstOpen = days.find(d=>!d.completed);
+  const currentPhase = firstOpen ? firstOpen.phase : (days.length? days[days.length-1].phase : PHASES[0]);
+  const currentDayNum = firstOpen ? firstOpen.day : (days.length? days[days.length-1].day+1 : 1);
+
+  const weekNum = Math.ceil(currentDayNum/7);
+  const weekDays = days.filter(d=>Math.ceil(d.day/7)===weekNum);
+  const weeklyCompletion = weekDays.length ? Math.round(weekDays.filter(d=>d.completed).length/weekDays.length*100) : 0;
+
+  // XP / level
+  const xp = doneTasks*5 + completedDays*20 + labs.filter(l=>l.rooted).length*50 +
+             state.skills.filter(k=>parseFloat(k.confidence)>=4).length*10 + mocks.length*40;
+  const levelThresholds = [0,100,250,450,700,1000,1400,1900,2500,3200,4000];
+  let level = 0;
+  while(level < levelThresholds.length-1 && xp >= levelThresholds[level+1]) level++;
+  const curFloor = levelThresholds[level];
+  const nextCeil = levelThresholds[level+1] || (curFloor + 1000);
+  const xpIntoLevel = xp - curFloor;
+  const xpForLevel = nextCeil - curFloor;
+  const xpPct = Math.min(100, Math.round(xpIntoLevel/xpForLevel*100));
+
+  return {
+    totalDays, completedDays, totalTasks, doneTasks,
+    totalHoursPlanned, totalHoursActual, streak, daysRemaining,
+    readiness, weak, strong, currentPhase, currentDayNum, weeklyCompletion,
+    overallPct: totalTasks? Math.round(doneTasks/totalTasks*100) : 0,
+    xp, level, xpIntoLevel, xpForLevel, xpPct
+  };
+}
+
+/* =========================================================
+   RENDER — SHELL
+   ========================================================= */
+let activeTab = "dashboard";
+
+function render(){
+  const app = document.getElementById('app');
+  const m = computeMetrics();
+  app.innerHTML = `
+    ${renderTopbar(m)}
+    ${renderRail(m)}
+    <div class="body">
+      ${renderSidebar()}
+      <div class="main" id="mainPanel">${renderTab(activeTab, m)}</div>
+    </div>
+  `;
+  attachHandlers();
+}
+
+function renderTopbar(m){
+  const examD = new Date(state.meta.examDate);
+  const examStr = examD.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  return `
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="brand-text">OSCP::PREP <span class="dim">// operator log — Yash</span></div>
+    </div>
+    <div class="headstats">
+      <div class="hstat"><span>Readiness</span><b class="amber">${m.readiness}<span style="font-size:11px;color:var(--text-faint)">/100</span></b></div>
+      <div class="hstat"><span>Day</span><b>${m.currentDayNum} <span style="font-size:11px;color:var(--text-faint)">/ ${m.totalDays}+</span></b></div>
+      <div class="hstat"><span>Overall %</span><b class="green">${m.overallPct}%</b></div>
+      <div class="hstat"><span>Streak</span><b class="${m.streak>0?'amber':''}">${m.streak}d</b></div>
+      <div class="hstat"><span>Exam Target</span><b style="font-size:13px;">${examStr}</b></div>
+      <div class="hstat"><span>Days Left</span><b class="${m.daysRemaining<30?'red':''}">${m.daysRemaining}</b></div>
+    </div>
+    <div class="io-btns">
+      <span class="hstat" style="display:flex;align-items:center;" title="${navigator.onLine?'Online — syncing to cloud':'Offline — saving locally, will sync when back online'}">
+        <span class="conn-dot ${navigator.onLine?'online':'offline'}"></span><span style="font-family:var(--mono);font-size:9.5px;">${navigator.onLine?'ONLINE':'OFFLINE'}</span>
+      </span>
+      <button class="icon-btn" id="pinBtn" title="View / change sync PIN">🔑</button>
+      <button class="icon-btn" id="undoBtn" title="Undo last change">↶</button>
+      <button class="icon-btn" id="soundBtn" title="Toggle sound feedback">${state.settings.sound?'🔊':'🔇'}</button>
+      <button class="icon-btn" id="themeBtn" title="Toggle light/dark theme">${state.settings.theme==='light'?'☀':'☾'}</button>
+      <button class="btn" id="exportBtn">⇩ Export .xlsx</button>
+      <button class="btn" id="importBtn">⇧ Import .xlsx</button>
+    </div>
+  </div>`;
+}
+
+function renderRail(m){
+  const currentIdx = PHASES.indexOf(m.currentPhase);
+  return `<div class="rail-wrap"><div class="rail">
+    ${PHASES.map((p,i)=>{
+      const cls = i<currentIdx ? "done" : (i===currentIdx ? "active":"");
+      const icon = i<currentIdx ? "✓" : String(i+1).padStart(2,'0');
+      return `<div class="rail-seg ${cls}">
+        <div class="rail-node">${icon}</div>
+        <div class="rail-label">${PHASE_SHORT[i]}</div>
+      </div>${i<PHASES.length-1?`<div class="rail-line ${i<currentIdx?'done':''}"></div>`:''}`;
+    }).join('')}
+  </div></div>`;
+}
+
+function renderSidebar(){
+  const items = [
+    ["dashboard","01","Dashboard"],
+    ["daily","02","Daily Log"],
+    ["skills","03","Skill Matrix"],
+    ["labs","04","Lab Tracker"],
+    ["commands","05","Commands"],
+    ["weak","06","Weak Points"],
+    ["weekly","07","Weekly Review"],
+    ["mocks","08","Mock Exams"],
+  ];
+  return `<div class="sidebar">
+    ${items.map(([id,n,label])=>`<div class="navitem ${activeTab===id?'active':''}" data-tab="${id}"><span class="n">${n}</span> ${label}</div>`).join('')}
+  </div>`;
+}
+
+function renderTab(tab, m){
+  switch(tab){
+    case "dashboard": return renderDashboard(m);
+    case "daily": return renderDaily(m);
+    case "skills": return renderSkills();
+    case "labs": return renderLabs();
+    case "commands": return renderCommands();
+    case "weak": return renderWeak();
+    case "weekly": return renderWeekly();
+    case "mocks": return renderMocks();
+    default: return "";
+  }
+}
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+function renderDashboard(m){
+  const circ = 2*Math.PI*48;
+  const offset = circ - (m.readiness/100)*circ;
+  const todayDay = state.days.find(d=>!d.completed);
+  return `
+  <div class="section-title">Dashboard</div>
+  <div class="section-sub">Live overview — pulled automatically from your logged progress.</div>
+
+  ${todayDay ? `
+  <div class="focus-card">
+    <div>
+      <div class="focus-eyebrow">Today's Focus — Day ${todayDay.day}</div>
+      <div class="focus-title">${todayDay.objective}</div>
+      <div class="focus-sub">${todayDay.topic} · ${todayDay.tasks.filter(t=>t.done).length}/${todayDay.tasks.length} tasks done</div>
+    </div>
+    <button class="btn primary" id="jumpTodayBtn">Open Day ${todayDay.day} →</button>
+  </div>` : `
+  <div class="focus-card"><div><div class="focus-eyebrow">Phase 1 Complete</div><div class="focus-title">Tell me in chat when you're ready — I'll generate Phase 2 (Enumeration).</div></div></div>`}
+
+  <div class="banner"><b>Reality check:</b> readiness is computed from skill confidence, independent lab completion (hints used), and mock exam performance — not just checklist completion. Ticking boxes without demonstrating a skill practically will NOT move this number much.</div>
+
+  <div class="grid grid-3" style="margin-bottom:14px;">
+    <div class="card readiness-ring">
+      <div class="ring">
+        <svg width="112" height="112">
+          <circle cx="56" cy="56" r="48" stroke="var(--panel-3)" stroke-width="8" fill="none"/>
+          <circle cx="56" cy="56" r="48" stroke="var(--amber)" stroke-width="8" fill="none"
+            stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+        </svg>
+        <div class="ring-text"><b>${m.readiness}</b><span>READINESS</span></div>
+      </div>
+      <div>
+        <div class="card-label">OSCP Readiness Estimate</div>
+        <div class="card-sub">Based on skill confidence (60%), independent lab performance (25%), mock exams (15%). This is a directional estimate, not a guarantee.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Phase / Day</div>
+      <div class="card-value">${m.currentPhase}</div>
+      <div class="card-sub">Day ${m.currentDayNum} · ${m.completedDays}/${m.totalDays} days completed in current logged range</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Target Exam Date</div>
+      <div class="card-value amber">${m.daysRemaining}d</div>
+      <div class="card-sub">Pencilled target: ${state.meta.examDate} — adjust anytime in the field below.</div>
+      <div style="margin-top:8px;"><input type="date" id="examDateInput" class="sel" value="${state.meta.examDate}" style="width:100%;"></div>
+    </div>
+  </div>
+
+  <div class="grid grid-4" style="margin-bottom:14px;">
+    <div class="card"><div class="card-label">Overall Completion</div><div class="card-value green">${m.overallPct}%</div><div class="card-sub">${m.doneTasks}/${m.totalTasks} logged tasks</div></div>
+    <div class="card"><div class="card-label">Weekly Completion</div><div class="card-value">${m.weeklyCompletion}%</div><div class="card-sub">Current week in progress</div></div>
+    <div class="card"><div class="card-label">Total Study Hours</div><div class="card-value">${m.totalHoursActual || 0}<span style="font-size:14px;color:var(--text-faint);">/${m.totalHoursPlanned}</span></div><div class="card-sub">Actual vs planned</div></div>
+    <div class="card"><div class="card-label">Current Streak</div><div class="card-value ${m.streak>0?'amber':''}">${m.streak}<span style="font-size:14px;color:var(--text-faint);"> days</span></div><div class="card-sub">Consecutive completed days</div></div>
+  </div>
+
+  <div class="grid grid-2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-label">Operator Level</div>
+      <div class="xp-row">
+        <div class="xp-badge"><b>${m.level}</b><span>LEVEL</span></div>
+        <div style="flex:1;">
+          <div class="xp-bar-track"><div class="xp-bar-fill" style="width:${m.xpPct}%;"></div></div>
+          <div class="card-sub" style="margin-top:6px;">${m.xpIntoLevel} / ${m.xpForLevel} XP to Level ${m.level+1}</div>
+        </div>
+      </div>
+      <div class="card-sub" style="margin-top:10px;">XP from: tasks done (+5), days completed (+20), machines rooted (+50), skills at 4+/5 (+10), mocks completed (+40)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Activity — last 14 days</div>
+      ${renderHeatmap()}
+      <div class="heatmap-legend">less <div class="heat-cell" data-lvl="0"></div><div class="heat-cell" data-lvl="1"></div><div class="heat-cell" data-lvl="2"></div><div class="heat-cell" data-lvl="3"></div> more</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-label">Weak Areas (confidence ≤ 2/5)</div>
+      ${m.weak.length ? `<div class="barlist" style="margin-top:8px;">${m.weak.map(w=>`
+        <div class="barrow"><div class="lbl">${w.name}</div><div class="bartrack"><div class="barfill" style="width:${w.confidence/5*100}%;background:linear-gradient(90deg,#7a2020,var(--red));"></div></div><div class="barval">${w.confidence}/5</div></div>
+      `).join('')}</div>` : `<div class="empty-note" style="margin-top:8px;">No weak areas logged yet — update the Skill Matrix as you practice.</div>`}
+    </div>
+    <div class="card">
+      <div class="card-label">Strong Areas (confidence ≥ 4/5)</div>
+      ${m.strong.length ? `<div class="barlist" style="margin-top:8px;">${m.strong.map(w=>`
+        <div class="barrow"><div class="lbl">${w.name}</div><div class="bartrack"><div class="barfill" style="width:${w.confidence/5*100}%;"></div></div><div class="barval">${w.confidence}/5</div></div>
+      `).join('')}</div>` : `<div class="empty-note" style="margin-top:8px;">Nothing at 4+/5 yet — that's expected on Day 1. This fills in as you go.</div>`}
+    </div>
+  </div>
+  `;
+}
+
+function renderHeatmap(){
+  const days = 14;
+  const cells = [];
+  const today = new Date();
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(today);
+    d.setDate(d.getDate()-i);
+    const key = d.toISOString().slice(0,10);
+    const hits = state.days.filter(dd=>dd.completedDate===key).length;
+    const lvl = hits===0?0:(hits===1?2:3);
+    cells.push(`<div class="heat-cell" data-lvl="${lvl}" title="${key}: ${hits} day(s) completed"></div>`);
+  }
+  return `<div class="heatmap">${cells.join('')}</div>`;
+}
+
+/* =========================================================
+   DAILY LOG
+   ========================================================= */
+let openDayId = null;
+
+function renderDaily(m){
+  return `
+  <div class="section-title">Daily Log — Phase 1: Foundations</div>
+  <div class="section-sub">21 days fully detailed. Later phases (Enumeration, Web Exploitation, AD, etc.) unlock and get generated once you're through this phase — this keeps the plan adaptive instead of a stale 300-row wall.</div>
+  <div class="kbd-hint">With a day open: <kbd>Space</kbd> toggles its next task · <kbd>←</kbd>/<kbd>→</kbd> jumps between days</div>
+  <div class="daylist" style="margin-top:12px;">
+    ${state.days.map(d=>renderDayCard(d)).join('')}
+  </div>
+  <div class="empty-note" style="margin-top:14px;">Phase 2 (Enumeration) generates once Day 21's assessment is marked complete. Just tell me in chat when you're there.</div>
+  `;
+}
+
+function renderDayCard(d){
+  const doneCount = d.tasks.filter(t=>t.done).length;
+  const pct = d.tasks.length ? Math.round(doneCount/d.tasks.length*100) : 0;
+  const isOpen = openDayId === d.id;
+  const todayFlag = !d.completed && state.days.find(x=>!x.completed)===d;
+  const timerRunning = !!d.timerStart;
+  return `
+  <div class="daycard ${todayFlag?'today':''} ${d.completed?'complete':''}">
+    <div class="dayhead" data-day-toggle="${d.id}">
+      <div class="dayhead-left">
+        <div class="daynum">DAY ${String(d.day).padStart(2,'0')}</div>
+        <div class="dayinfo"><b>${d.objective}</b><span>${d.topic}</span></div>
+      </div>
+      <div class="daymeta">
+        <span class="pill phase">${d.phase}</span>
+        <span class="pill">${d.priority}</span>
+        <span class="pill">${d.difficulty}</span>
+        <div class="progress-mini"><i style="width:${pct}%;"></i></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-faint);">${pct}%</span>
+      </div>
+    </div>
+    <div class="daybody ${isOpen?'open':''}">
+      <div class="day-cols">
+        <div>
+          <div class="day-field"><div class="fl">Subtopics</div><div class="fv">${d.subtopics}</div></div>
+          <div class="day-field"><div class="fl">Theory Task</div><div class="fv">${d.theory}</div></div>
+          <div class="day-field"><div class="fl">Practical Task</div><div class="fv">${d.practical}</div></div>
+        </div>
+        <div>
+          <div class="day-field"><div class="fl">Lab / Machine</div><div class="fv">${d.lab}</div></div>
+          <div class="day-field"><div class="fl">Tools / Commands</div><div class="fv">${d.tools}</div></div>
+        </div>
+      </div>
+      <div class="day-field">
+        <div class="fl">Checklist</div>
+        <div class="checklist">
+          ${d.tasks.map(t=>`
+            <div class="chk ${t.done?'done':''}">
+              <input type="checkbox" data-task-day="${d.id}" data-task-id="${t.id}" ${t.done?'checked':''}>
+              <label>${t.text}</label>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="day-controls">
+        <button class="timer-btn ${timerRunning?'running':''}" data-timer-toggle="${d.id}">${timerRunning?'⏸ Stop timer':'▶ Start timer'}</button>
+        ${timerRunning ? `<span class="timer-display" data-timer-display="${d.id}">--:--</span>` : ''}
+        <button class="btn" data-pdf-day="${d.id}">🖶 PDF</button>
+        <span class="small-lbl">Est hrs</span><span style="font-family:var(--mono);font-size:11.5px;">${d.estHours}</span>
+        <span class="small-lbl" style="margin-left:8px;">Actual hrs</span>
+        <input type="number" step="0.5" min="0" class="num-input" data-day-field="${d.id}:actHours" value="${d.actHours}">
+        <span class="small-lbl">Confidence</span>
+        <select class="sel" data-day-field="${d.id}:confidence">
+          ${[0,1,2,3,4,5].map(n=>`<option value="${n}" ${d.confidence==n?'selected':''}>${n}/5</option>`).join('')}
+        </select>
+        <span class="small-lbl">Status</span>
+        <select class="sel" data-day-field="${d.id}:status">
+          ${["Not started","In progress","Done","Skipped"].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--amber);margin-left:auto;">
+          <input type="checkbox" data-day-complete="${d.id}" ${d.completed?'checked':''}> Mark day complete
+        </label>
+      </div>
+      <div class="day-field" style="margin-top:10px;">
+        <div class="fl">Notes / Lessons Learned</div>
+        <textarea class="txt-notes" data-day-field="${d.id}:notes" placeholder="What tripped you up today? Feeds into the Weakness Tracker.">${d.notes}</textarea>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =========================================================
+   SKILL MATRIX
+   ========================================================= */
+function renderSkills(){
+  return `
+  <div class="section-title">Skill Matrix</div>
+  <div class="section-sub">Update confidence as you practice — this directly drives your Readiness Score.</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Confidence</th><th>Target</th><th>Practice Count</th><th>Last Practiced</th><th>Status</th></tr></thead>
+    <tbody>
+      ${state.skills.map(s=>`
+        <tr>
+          <td style="color:var(--text);font-weight:500;">${s.name}</td>
+          <td><select class="sel" data-skill-field="${s.id}:level">
+            ${["Beginner","Intermediate","Advanced"].map(l=>`<option ${s.level===l?'selected':''}>${l}</option>`).join('')}
+          </select></td>
+          <td><select class="sel conf-badge" style="color:${confColor(s.confidence)}" data-skill-field="${s.id}:confidence">
+            ${[0,1,2,3,4,5].map(n=>`<option value="${n}" ${s.confidence==n?'selected':''}>${n}/5</option>`).join('')}
+          </select></td>
+          <td><select class="sel" data-skill-field="${s.id}:target">
+            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${s.target==n?'selected':''}>${n}/5</option>`).join('')}
+          </select></td>
+          <td><input type="number" min="0" class="num-input" data-skill-field="${s.id}:practiceCount" value="${s.practiceCount}"></td>
+          <td><input type="date" data-skill-field="${s.id}:lastPracticed" value="${s.lastPracticed}"></td>
+          <td><select class="sel" data-skill-field="${s.id}:status">
+            ${["Not started","Learning","Practiced","Confident"].map(st=>`<option ${s.status===st?'selected':''}>${st}</option>`).join('')}
+          </select></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>
+  `;
+}
+function confColor(v){
+  v = parseFloat(v);
+  if(v<=1) return "var(--red)";
+  if(v<=2) return "#E08A3C";
+  if(v<=3) return "var(--amber)";
+  if(v<=4) return "#9BC44F";
+  return "var(--green)";
+}
+
+/* =========================================================
+   LAB TRACKER
+   ========================================================= */
+let labFilter = "";
+function renderLabs(){
+  const filtered = state.labs.filter(l=>{
+    if(!labFilter) return true;
+    const hay = [l.platform,l.machine,l.difficulty,l.os,l.foothold,l.privesc,l.keyLesson].join(' ').toLowerCase();
+    return hay.includes(labFilter.toLowerCase());
+  });
+  return `
+  <div class="section-title">Lab / Machine Tracker</div>
+  <div class="section-sub">Hints Used: 0 = no help · 1 = minor hint · 2 = significant hint · 3 = walkthrough. This directly feeds your Readiness Score — be honest.</div>
+  <div class="toolbar">
+    <input type="text" class="search-input" id="labSearch" placeholder="Search machine, OS, technique…" value="${escapeAttr(labFilter)}">
+    <button class="btn primary" id="addLabBtn">+ Add Machine</button>
+  </div>
+  ${filtered.length ? `<div class="table-wrap"><table>
+    <thead><tr><th>Platform</th><th>Machine</th><th>Difficulty</th><th>OS</th><th>Started</th><th>Completed</th><th>Time (h)</th><th>Foothold</th><th>Privesc</th><th>Hints Used</th><th>Root/System</th><th>Report</th><th>Key Lesson</th><th></th></tr></thead>
+    <tbody>
+      ${filtered.map(l=>`
+        <tr>
+          <td><input type="text" data-lab-field="${l.id}:platform" value="${l.platform}"></td>
+          <td><input type="text" data-lab-field="${l.id}:machine" value="${l.machine}"></td>
+          <td><select class="sel" data-lab-field="${l.id}:difficulty">${["Easy","Medium","Hard","Insane"].map(x=>`<option ${l.difficulty===x?'selected':''}>${x}</option>`).join('')}</select></td>
+          <td><select class="sel" data-lab-field="${l.id}:os">${["Linux","Windows","AD"].map(x=>`<option ${l.os===x?'selected':''}>${x}</option>`).join('')}</select></td>
+          <td><input type="date" data-lab-field="${l.id}:started" value="${l.started}"></td>
+          <td><input type="date" data-lab-field="${l.id}:completed" value="${l.completed}"></td>
+          <td><input type="number" step="0.5" class="num-input" data-lab-field="${l.id}:timeSpent" value="${l.timeSpent}"></td>
+          <td><input type="text" data-lab-field="${l.id}:foothold" value="${l.foothold}"></td>
+          <td><input type="text" data-lab-field="${l.id}:privesc" value="${l.privesc}"></td>
+          <td><select class="sel" data-lab-field="${l.id}:hintsUsed">${[0,1,2,3].map(x=>`<option value="${x}" ${l.hintsUsed==x?'selected':''}>${x}</option>`).join('')}</select></td>
+          <td><input type="checkbox" data-lab-check="${l.id}:rooted" ${l.rooted?'checked':''}></td>
+          <td><input type="checkbox" data-lab-check="${l.id}:reportDone" ${l.reportDone?'checked':''}></td>
+          <td><input type="text" data-lab-field="${l.id}:keyLesson" value="${l.keyLesson}"></td>
+          <td><button class="btn danger" data-lab-del="${l.id}">✕</button></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>` : `<div class="empty-note">${state.labs.length? 'No machines match your search.' : 'No machines logged yet. Add your first one once you attempt a box.'}</div>`}
+  `;
+}
+
+/* =========================================================
+   COMMAND TRACKER
+   ========================================================= */
+let cmdFilter = "";
+function renderCommands(){
+  const filtered = state.commands.filter(c=>{
+    if(!cmdFilter) return true;
+    const hay = [c.category,c.command,c.purpose,c.whenToUse,c.example,c.relevance].join(' ').toLowerCase();
+    return hay.includes(cmdFilter.toLowerCase());
+  });
+  return `
+  <div class="section-title">Command / Technique Tracker</div>
+  <div class="section-sub">Your growing reference — mark commands practiced (typed and run yourself, not copy-pasted) as you go.</div>
+  <div class="toolbar">
+    <input type="text" class="search-input" id="cmdSearch" placeholder="Search command, category, purpose…" value="${escapeAttr(cmdFilter)}">
+    <button class="btn primary" id="addCmdBtn">+ Add Command</button>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Category</th><th>Command</th><th>Purpose</th><th>When to Use</th><th>Example</th><th>OSCP Relevance</th><th>Practiced</th><th></th></tr></thead>
+    <tbody>
+      ${filtered.map(c=>`
+        <tr>
+          <td><input type="text" data-cmd-field="${c.id}:category" value="${c.category}"></td>
+          <td><input type="text" style="font-family:var(--mono);" data-cmd-field="${c.id}:command" value="${escapeAttr(c.command)}"></td>
+          <td><input type="text" data-cmd-field="${c.id}:purpose" value="${escapeAttr(c.purpose)}"></td>
+          <td><input type="text" data-cmd-field="${c.id}:whenToUse" value="${escapeAttr(c.whenToUse)}"></td>
+          <td><input type="text" style="font-family:var(--mono);" data-cmd-field="${c.id}:example" value="${escapeAttr(c.example)}"></td>
+          <td><input type="text" data-cmd-field="${c.id}:relevance" value="${escapeAttr(c.relevance)}"></td>
+          <td><input type="checkbox" data-cmd-check="${c.id}" ${c.practiced?'checked':''}></td>
+          <td><button class="btn danger" data-cmd-del="${c.id}">✕</button></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>
+  ${filtered.length===0 && state.commands.length>0 ? `<div class="empty-note" style="margin-top:10px;">No commands match your search.</div>` : ''}
+  `;
+}
+function escapeAttr(s){ return (s||"").replace(/"/g,'&quot;'); }
+
+/* =========================================================
+   WEAKNESS TRACKER
+   ========================================================= */
+function renderWeak(){
+  return `
+  <div class="section-title">Weakness / Revision Tracker</div>
+  <div class="section-sub">Log anything you failed, needed a hint on, walked through, or forgot. Tell me in chat too ("I struggled with Linux privesc") and I'll fold it into upcoming days.</div>
+  <div class="toolbar"><span></span><button class="btn primary" id="addWeakBtn">+ Add Entry</button></div>
+  ${state.weaknesses.length ? `<div class="table-wrap"><table>
+    <thead><tr><th>Topic</th><th>Problem</th><th>First Seen</th><th>Severity</th><th>Revision Needed</th><th>Revision Date</th><th>Revised?</th><th>Result</th><th>Confidence Now</th><th></th></tr></thead>
+    <tbody>
+      ${state.weaknesses.map(w=>`
+        <tr>
+          <td><input type="text" data-weak-field="${w.id}:topic" value="${escapeAttr(w.topic)}"></td>
+          <td><input type="text" data-weak-field="${w.id}:problem" value="${escapeAttr(w.problem)}"></td>
+          <td><input type="date" data-weak-field="${w.id}:firstSeen" value="${w.firstSeen}"></td>
+          <td><select class="sel" data-weak-field="${w.id}:severity">${["Low","Medium","High"].map(x=>`<option ${w.severity===x?'selected':''}>${x}</option>`).join('')}</select></td>
+          <td><input type="checkbox" data-weak-check="${w.id}:revisionNeeded" ${w.revisionNeeded?'checked':''}></td>
+          <td><input type="date" data-weak-field="${w.id}:revisionDate" value="${w.revisionDate}"></td>
+          <td><input type="checkbox" data-weak-check="${w.id}:revised" ${w.revised?'checked':''}></td>
+          <td><input type="text" data-weak-field="${w.id}:result" value="${escapeAttr(w.result)}"></td>
+          <td><select class="sel" data-weak-field="${w.id}:confidence">${[0,1,2,3,4,5].map(n=>`<option value="${n}" ${w.confidence==n?'selected':''}>${n}/5</option>`).join('')}</select></td>
+          <td><button class="btn danger" data-weak-del="${w.id}">✕</button></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>` : `<div class="empty-note">No weak points logged yet.</div>`}
+  `;
+}
+
+/* =========================================================
+   WEEKLY REVIEW
+   ========================================================= */
+function renderWeekly(){
+  return `
+  <div class="section-title">Weekly Review</div>
+  <div class="section-sub">Do this every 7 days — takes 5 minutes and is one of the highest-value habits in this whole system.</div>
+  <div class="toolbar"><span></span><button class="btn primary" id="addWeekBtn">+ Log This Week</button></div>
+  ${state.weeklyReviews.length ? `<div class="table-wrap"><table>
+    <thead><tr><th>Week</th><th>Planned Hrs</th><th>Actual Hrs</th><th>Completion %</th><th>Machines Done</th><th>Weak Areas</th><th>Strong Areas</th><th>Revise Next</th><th>Stop Wasting Time On</th><th>Next Priority</th><th></th></tr></thead>
+    <tbody>
+      ${state.weeklyReviews.map(w=>`
+        <tr>
+          <td><input type="text" style="width:60px;" data-week-field="${w.id}:week" value="${escapeAttr(w.week)}"></td>
+          <td><input type="number" class="num-input" data-week-field="${w.id}:plannedHrs" value="${w.plannedHrs}"></td>
+          <td><input type="number" class="num-input" data-week-field="${w.id}:actualHrs" value="${w.actualHrs}"></td>
+          <td><input type="number" class="num-input" data-week-field="${w.id}:completionPct" value="${w.completionPct}"></td>
+          <td><input type="number" class="num-input" data-week-field="${w.id}:machinesDone" value="${w.machinesDone}"></td>
+          <td><input type="text" data-week-field="${w.id}:weakAreas" value="${escapeAttr(w.weakAreas)}"></td>
+          <td><input type="text" data-week-field="${w.id}:strongAreas" value="${escapeAttr(w.strongAreas)}"></td>
+          <td><input type="text" data-week-field="${w.id}:reviseNext" value="${escapeAttr(w.reviseNext)}"></td>
+          <td><input type="text" data-week-field="${w.id}:stopWasting" value="${escapeAttr(w.stopWasting)}"></td>
+          <td><input type="text" data-week-field="${w.id}:nextPriority" value="${escapeAttr(w.nextPriority)}"></td>
+          <td><button class="btn danger" data-week-del="${w.id}">✕</button></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>` : `<div class="empty-note">No weekly reviews logged yet. Add one after your first 7 days.</div>`}
+  `;
+}
+
+/* =========================================================
+   MOCK EXAMS
+   ========================================================= */
+function renderMocks(){
+  return `
+  <div class="section-title">Mock Exam Tracker</div>
+  <div class="section-sub">Three planned checkpoints. These carry real weight in your Readiness Score — don't skip them.</div>
+  <div class="grid grid-3">
+    ${state.mocks.map(mk=>`
+      <div class="card">
+        <div class="card-label">${mk.phase}</div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:10px;">${mk.plannedWhen}</div>
+        <div class="day-field"><div class="fl">Status</div>
+          <select class="sel" style="width:100%;" data-mock-field="${mk.id}:status">
+            ${["Upcoming","In Progress","Completed"].map(s=>`<option ${mk.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="day-field"><div class="fl">Date</div><input type="date" style="width:100%;" data-mock-field="${mk.id}:date" value="${mk.date}"></div>
+        <div class="day-field"><div class="fl">Duration (hrs)</div><input type="number" class="num-input" style="width:100%;" data-mock-field="${mk.id}:duration" value="${mk.duration}"></div>
+        <div class="day-field"><div class="fl">Machines Attempted / Rooted</div>
+          <div style="display:flex;gap:6px;">
+            <input type="number" class="num-input" data-mock-field="${mk.id}:attempted" value="${mk.attempted}" placeholder="attempted">
+            <input type="number" class="num-input" data-mock-field="${mk.id}:rooted" value="${mk.rooted}" placeholder="rooted">
+          </div>
+        </div>
+        <div class="day-field"><div class="fl">Score / Points</div><input type="text" style="width:100%;" data-mock-field="${mk.id}:score" value="${escapeAttr(mk.score)}"></div>
+        <div class="day-field"><div class="fl">Notes / Biggest Mistakes</div><textarea class="txt-notes" data-mock-field="${mk.id}:notes">${mk.notes}</textarea></div>
+      </div>
+    `).join('')}
+  </div>
+  `;
+}
+
+/* =========================================================
+   EXCEL EXPORT / IMPORT
+   ========================================================= */
+function showToast(msg, kind){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (kind? ' '+kind : '');
+  setTimeout(()=>{ t.className = 'toast'; }, 2600);
+}
+
+function exportToExcel(){
+  try{
+    const m = computeMetrics();
+    const wb = XLSX.utils.book_new();
+
+    const dash = [{
+      "Overall Completion %": m.overallPct, "Days Completed": m.completedDays, "Total Days Logged": m.totalDays,
+      "Current Day": m.currentDayNum, "Current Phase": m.currentPhase, "Readiness Score": m.readiness,
+      "Total Study Hours (Actual)": m.totalHoursActual, "Total Study Hours (Planned)": m.totalHoursPlanned,
+      "Weekly Completion %": m.weeklyCompletion, "Current Streak (days)": m.streak,
+      "Target Exam Date": state.meta.examDate, "Days Remaining": m.daysRemaining,
+      "Weak Areas": m.weak.map(w=>w.name).join(", "), "Strong Areas": m.strong.map(w=>w.name).join(", ")
+    }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dash), "Dashboard");
+
+    const daily = state.days.map(d=>({
+      Day:d.day, Phase:d.phase, Objective:d.objective, Topic:d.topic, Subtopics:d.subtopics,
+      "Theory Task":d.theory, "Practical Task":d.practical, "Lab/Machine":d.lab, "Tools/Commands":d.tools,
+      "Checklist (JSON)": JSON.stringify(d.tasks), "Est Hours":d.estHours, "Actual Hours":d.actHours,
+      Priority:d.priority, Difficulty:d.difficulty, Confidence:d.confidence, Status:d.status,
+      Completed:d.completed, Notes:d.notes
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(daily), "Daily Plan");
+
+    const skills = state.skills.map(s=>({
+      Skill:s.name, Level:s.level, Confidence:s.confidence, Target:s.target,
+      "Practice Count":s.practiceCount, "Last Practiced":s.lastPracticed, Status:s.status
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(skills), "Skill Matrix");
+
+    const labs = state.labs.map(l=>({
+      Platform:l.platform, Machine:l.machine, Difficulty:l.difficulty, OS:l.os,
+      Started:l.started, Completed:l.completed, "Time Spent (h)":l.timeSpent,
+      Foothold:l.foothold, Privesc:l.privesc, "Hints Used (0-3)":l.hintsUsed,
+      "Rooted/SYSTEM":l.rooted, "Report Done":l.reportDone, "Key Lesson":l.keyLesson
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(labs.length?labs:[{Platform:"",Machine:""}]), "Lab Tracker");
+
+    const cmds = state.commands.map(c=>({
+      Category:c.category, Command:c.command, Purpose:c.purpose, "When To Use":c.whenToUse,
+      Example:c.example, "OSCP Relevance":c.relevance, Practiced:c.practiced
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cmds), "Commands");
+
+    const weak = state.weaknesses.map(w=>({
+      Topic:w.topic, Problem:w.problem, "First Seen":w.firstSeen, Severity:w.severity,
+      "Revision Needed":w.revisionNeeded, "Revision Date":w.revisionDate, Revised:w.revised,
+      Result:w.result, Confidence:w.confidence
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(weak.length?weak:[{Topic:""}]), "Weak Points");
+
+    const weekly = state.weeklyReviews.map(w=>({
+      Week:w.week, "Planned Hrs":w.plannedHrs, "Actual Hrs":w.actualHrs, "Completion %":w.completionPct,
+      "Machines Done":w.machinesDone, "Weak Areas":w.weakAreas, "Strong Areas":w.strongAreas,
+      "Revise Next":w.reviseNext, "Stop Wasting Time On":w.stopWasting, "Next Priority":w.nextPriority
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(weekly.length?weekly:[{Week:""}]), "Weekly Review");
+
+    const mocks = state.mocks.map(mk=>({
+      Phase:mk.phase, "Planned When":mk.plannedWhen, Status:mk.status, Date:mk.date, "Duration (h)":mk.duration,
+      Attempted:mk.attempted, Rooted:mk.rooted, Score:mk.score, Notes:mk.notes
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mocks), "Mock Exams");
+
+    const fname = `oscp-tracker-${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    showToast('Exported ' + fname, 'ok');
+  }catch(e){
+    console.error(e);
+    showToast('Export failed — see console', 'err');
+  }
+}
+
+function importFromExcel(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const sheet = (name)=> wb.SheetNames.includes(name) ? XLSX.utils.sheet_to_json(wb.Sheets[name]) : null;
+
+      const daily = sheet("Daily Plan");
+      if(daily){
+        state.days = daily.map(r=>{
+          let tasks = [];
+          try{ tasks = JSON.parse(r["Checklist (JSON)"]||"[]"); }catch(_){ tasks = []; }
+          return {
+            id:r.Day, day:r.Day, phase:r.Phase||"", objective:r.Objective||"", topic:r.Topic||"",
+            subtopics:r.Subtopics||"", theory:r["Theory Task"]||"", practical:r["Practical Task"]||"",
+            lab:r["Lab/Machine"]||"", tools:r["Tools/Commands"]||"", tasks:tasks,
+            estHours:r["Est Hours"]||"", actHours:r["Actual Hours"]||"", priority:r.Priority||"Medium",
+            difficulty:r.Difficulty||"Medium", confidence:r.Confidence||0, status:r.Status||"Not started",
+            completed: r.Completed===true || r.Completed==="TRUE" || r.Completed===1, notes:r.Notes||"",
+            completedDate:"", timerStart:""
+          };
+        });
+      }
+
+      const skills = sheet("Skill Matrix");
+      if(skills){
+        state.skills = skills.map((r,i)=>({
+          id:i+1, name:r.Skill||"", level:r.Level||"Beginner", confidence:r.Confidence||0,
+          target:r.Target||4, practiceCount:r["Practice Count"]||0, lastPracticed:r["Last Practiced"]||"",
+          status:r.Status||"Not started"
+        }));
+      }
+
+      const labs = sheet("Lab Tracker");
+      if(labs){
+        state.labs = labs.filter(r=>r.Machine).map((r,i)=>({
+          id:i+1, platform:r.Platform||"", machine:r.Machine||"", difficulty:r.Difficulty||"Easy",
+          os:r.OS||"Linux", started:r.Started||"", completed:r.Completed||"", timeSpent:r["Time Spent (h)"]||"",
+          foothold:r.Foothold||"", privesc:r.Privesc||"", hintsUsed:r["Hints Used (0-3)"]||0,
+          rooted: r["Rooted/SYSTEM"]===true||r["Rooted/SYSTEM"]==="TRUE", reportDone: r["Report Done"]===true||r["Report Done"]==="TRUE",
+          keyLesson:r["Key Lesson"]||""
+        }));
+      }
+
+      const cmds = sheet("Commands");
+      if(cmds){
+        state.commands = cmds.filter(r=>r.Command).map((r,i)=>({
+          id:i+1, category:r.Category||"", command:r.Command||"", purpose:r.Purpose||"",
+          whenToUse:r["When To Use"]||"", example:r.Example||"", relevance:r["OSCP Relevance"]||"",
+          practiced: r.Practiced===true||r.Practiced==="TRUE"
+        }));
+      }
+
+      const weak = sheet("Weak Points");
+      if(weak){
+        state.weaknesses = weak.filter(r=>r.Topic).map((r,i)=>({
+          id:i+1, topic:r.Topic||"", problem:r.Problem||"", firstSeen:r["First Seen"]||"",
+          severity:r.Severity||"Medium", revisionNeeded:r["Revision Needed"]===true||r["Revision Needed"]==="TRUE",
+          revisionDate:r["Revision Date"]||"", revised:r.Revised===true||r.Revised==="TRUE",
+          result:r.Result||"", confidence:r.Confidence||0
+        }));
+      }
+
+      const weekly = sheet("Weekly Review");
+      if(weekly){
+        state.weeklyReviews = weekly.filter(r=>r.Week).map((r,i)=>({
+          id:i+1, week:r.Week||"", plannedHrs:r["Planned Hrs"]||"", actualHrs:r["Actual Hrs"]||"",
+          completionPct:r["Completion %"]||"", machinesDone:r["Machines Done"]||"", weakAreas:r["Weak Areas"]||"",
+          strongAreas:r["Strong Areas"]||"", reviseNext:r["Revise Next"]||"", stopWasting:r["Stop Wasting Time On"]||"",
+          nextPriority:r["Next Priority"]||""
+        }));
+      }
+
+      const mocks = sheet("Mock Exams");
+      if(mocks){
+        state.mocks = mocks.map((r,i)=>({
+          id:i+1, phase:r.Phase||"", plannedWhen:r["Planned When"]||"", status:r.Status||"Upcoming",
+          date:r.Date||"", duration:r["Duration (h)"]||"", attempted:r.Attempted||"", rooted:r.Rooted||"",
+          score:r.Score||"", notes:r.Notes||""
+        }));
+      }
+
+      const dash = sheet("Dashboard");
+      if(dash && dash[0] && dash[0]["Target Exam Date"]) state.meta.examDate = dash[0]["Target Exam Date"];
+
+      queueSave();
+      render();
+      showToast('Imported successfully', 'ok');
+    }catch(err){
+      console.error(err);
+      showToast('Import failed — check file format', 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================================================
+   THEME / SOUND / UNDO / TIMER / PDF
+   ========================================================= */
+function applyTheme(){
+  document.documentElement.classList.toggle('light-theme', state.settings.theme==='light');
+}
+function toggleTheme(){
+  state.settings.theme = state.settings.theme==='light' ? 'dark' : 'light';
+  applyTheme();
+  queueSave();
+  render();
+}
+function toggleSound(){
+  state.settings.sound = !state.settings.sound;
+  queueSave();
+  render();
+}
+function playFeedback(){
+  if(!state.settings.sound) return;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 720;
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.18);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime+0.18);
+  }catch(e){}
+  if(navigator.vibrate) navigator.vibrate(25);
+}
+
+let undoStack = [];
+function pushUndo(){
+  try{
+    undoStack.push(JSON.stringify(state));
+    if(undoStack.length>5) undoStack.shift();
+  }catch(e){}
+}
+function undo(){
+  if(undoStack.length===0){ showToast('Nothing to undo this session', 'err'); return; }
+  state = JSON.parse(undoStack.pop());
+  applyTheme();
+  queueSave();
+  render();
+  showToast('Undone', 'ok');
+}
+
+let tickInterval = null;
+function startGlobalTick(){
+  if(tickInterval) return;
+  tickInterval = setInterval(()=>{
+    document.querySelectorAll('[data-timer-display]').forEach(el=>{
+      const dayId = parseInt(el.getAttribute('data-timer-display'));
+      const d = findById(state.days, dayId);
+      if(d && d.timerStart){
+        const elapsed = Date.now() - new Date(d.timerStart).getTime();
+        const mins = Math.floor(elapsed/60000);
+        const secs = Math.floor((elapsed%60000)/1000);
+        el.textContent = String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+      }
+    });
+  }, 1000);
+}
+
+function exportDayPDF(dayId){
+  const d = findById(state.days, dayId);
+  if(!d) return;
+  const html = `<html><head><title>OSCP Day ${d.day} — ${escapeAttr(d.objective)}</title>
+    <style>
+      body{font-family:Georgia,'Times New Roman',serif;padding:44px;color:#111;max-width:720px;margin:0 auto;}
+      h1{font-size:21px;border-bottom:2px solid #222;padding-bottom:10px;}
+      h2{font-size:12px;color:#555;text-transform:uppercase;letter-spacing:1.2px;margin-top:22px;margin-bottom:4px;}
+      p{font-size:13.5px;line-height:1.6;margin:0;}
+      ul{padding-left:20px;margin:4px 0;}
+      li{font-size:13.5px;margin-bottom:5px;}
+      .meta{font-size:12px;color:#666;margin-top:6px;}
+    </style></head><body>
+    <h1>Day ${d.day} — ${escapeAttr(d.objective)}</h1>
+    <div class="meta">Phase: ${escapeAttr(d.phase)} &nbsp;·&nbsp; Priority: ${escapeAttr(d.priority)} &nbsp;·&nbsp; Difficulty: ${escapeAttr(d.difficulty)} &nbsp;·&nbsp; Est. ${d.estHours}h</div>
+    <h2>Topic</h2><p>${escapeAttr(d.topic)}</p>
+    <h2>Subtopics</h2><p>${escapeAttr(d.subtopics)}</p>
+    <h2>Theory Task</h2><p>${escapeAttr(d.theory)}</p>
+    <h2>Practical Task</h2><p>${escapeAttr(d.practical)}</p>
+    <h2>Lab / Machine</h2><p>${escapeAttr(d.lab)}</p>
+    <h2>Tools / Commands</h2><p>${escapeAttr(d.tools)}</p>
+    <h2>Checklist</h2><ul>${d.tasks.map(t=>`<li>${t.done?'☑':'☐'} ${escapeAttr(t.text)}</li>`).join('')}</ul>
+    <h2>Notes</h2><p>${escapeAttr(d.notes)||'—'}</p>
+    </body></html>`;
+  const w = window.open('', '_blank');
+  if(!w){ showToast('Popup blocked — allow popups to export PDF', 'err'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>{ w.print(); }, 350);
+}
+
+function setupKeyboardShortcuts(){
+  document.addEventListener('keydown', (e)=>{
+    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+    if(activeTab !== 'daily' || !openDayId) return;
+    const day = findById(state.days, openDayId);
+    if(!day) return;
+    if(e.code === 'Space'){
+      e.preventDefault();
+      const nextTask = day.tasks.find(t=>!t.done);
+      if(nextTask){ nextTask.done = true; playFeedback(); queueSave(); render(); }
+    } else if(e.code === 'ArrowRight'){
+      const idx = state.days.findIndex(d=>d.id===openDayId);
+      if(idx < state.days.length-1){ openDayId = state.days[idx+1].id; render(); }
+    } else if(e.code === 'ArrowLeft'){
+      const idx = state.days.findIndex(d=>d.id===openDayId);
+      if(idx > 0){ openDayId = state.days[idx-1].id; render(); }
+    }
+  });
+}
+
+function showPinInfoModal(){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-eyebrow">Sync PIN</div>
+      <div class="modal-title">This device is synced with:</div>
+      <div class="modal-input" style="text-align:center;letter-spacing:2px;user-select:all;cursor:text;">${PIN}</div>
+      <div class="modal-body">Enter this exact PIN on any other device (phone, laptop, tablet) to pull the same data there. Anyone with this PIN can access your tracker — keep it private, like a password.</div>
+      <div class="modal-actions">
+        <button class="btn" id="pinModalCopy">Copy</button>
+        <button class="btn" id="pinModalSwitch">Switch to a different PIN</button>
+        <button class="btn primary" id="pinModalClose">Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#pinModalClose').onclick = ()=> document.body.removeChild(overlay);
+  overlay.querySelector('#pinModalCopy').onclick = ()=>{
+    navigator.clipboard && navigator.clipboard.writeText(PIN).then(()=> showToast('PIN copied', 'ok'));
+  };
+  overlay.querySelector('#pinModalSwitch').onclick = async ()=>{
+    document.body.removeChild(overlay);
+    localStorage.removeItem('oscp_pin');
+    PIN = '';
+    await loadState();
+    render();
+  };
+}
+
+function updateConnBadge(){
+  document.querySelectorAll('.conn-dot').forEach(el=>{
+    el.className = 'conn-dot ' + (navigator.onLine ? 'online' : 'offline');
+  });
+}
+window.addEventListener('online', ()=>{ updateConnBadge(); queueSave(); });
+window.addEventListener('offline', updateConnBadge);
+
+/* =========================================================
+   EVENT HANDLERS
+   ========================================================= */
+function findById(arr,id){ return arr.find(x=>String(x.id)===String(id)); }
+
+function attachHandlers(){
+  document.querySelectorAll('[data-tab]').forEach(el=>{
+    el.onclick = ()=>{ activeTab = el.getAttribute('data-tab'); render(); };
+  });
+
+  document.querySelectorAll('[data-day-toggle]').forEach(el=>{
+    el.onclick = ()=>{
+      const id = el.getAttribute('data-day-toggle');
+      openDayId = (openDayId === parseInt(id)) ? null : parseInt(id);
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-task-day]').forEach(el=>{
+    el.onclick = (e)=>{ e.stopPropagation(); };
+    el.onchange = (e)=>{
+      e.stopPropagation();
+      pushUndo();
+      const dayId = parseInt(el.getAttribute('data-task-day'));
+      const taskId = el.getAttribute('data-task-id');
+      const day = findById(state.days, dayId);
+      const task = day.tasks.find(t=>t.id===taskId);
+      task.done = el.checked;
+      if(el.checked) playFeedback();
+      queueSave();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-day-field]').forEach(el=>{
+    const evt = el.tagName==='TEXTAREA' ? 'input' : 'change';
+    el[evt==='input'?'oninput':'onchange'] = ()=>{
+      const [dayId, field] = el.getAttribute('data-day-field').split(':');
+      const day = findById(state.days, parseInt(dayId));
+      day[field] = el.value;
+      queueSave();
+    };
+  });
+
+  document.querySelectorAll('[data-day-complete]').forEach(el=>{
+    el.onchange = ()=>{
+      pushUndo();
+      const dayId = parseInt(el.getAttribute('data-day-complete'));
+      const day = findById(state.days, dayId);
+      day.completed = el.checked;
+      if(el.checked){
+        day.status = "Done";
+        day.completedDate = new Date().toISOString().slice(0,10);
+        playFeedback();
+      } else {
+        day.completedDate = "";
+      }
+      queueSave();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-timer-toggle]').forEach(el=>{
+    el.onclick = ()=>{
+      const dayId = parseInt(el.getAttribute('data-timer-toggle'));
+      const day = findById(state.days, dayId);
+      if(day.timerStart){
+        const elapsedMs = Date.now() - new Date(day.timerStart).getTime();
+        const elapsedHrs = elapsedMs/3600000;
+        const prevActual = parseFloat(day.actHours)||0;
+        day.actHours = Math.round((prevActual+elapsedHrs)*100)/100;
+        day.timerStart = "";
+      } else {
+        day.timerStart = new Date().toISOString();
+      }
+      queueSave();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-pdf-day]').forEach(el=>{
+    el.onclick = ()=> exportDayPDF(parseInt(el.getAttribute('data-pdf-day')));
+  });
+
+  const jumpTodayBtn = document.getElementById('jumpTodayBtn');
+  if(jumpTodayBtn){
+    jumpTodayBtn.onclick = ()=>{
+      const d = state.days.find(x=>!x.completed);
+      if(d){
+        activeTab='daily'; openDayId=d.id; render();
+        setTimeout(()=>{
+          const el = document.querySelector(`[data-day-toggle="${d.id}"]`);
+          if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+        }, 60);
+      }
+    };
+  }
+
+  const examInput = document.getElementById('examDateInput');
+  if(examInput){ examInput.onchange = ()=>{ state.meta.examDate = examInput.value; queueSave(); render(); }; }
+
+  const exportBtn = document.getElementById('exportBtn');
+  if(exportBtn) exportBtn.onclick = exportToExcel;
+  const importBtn = document.getElementById('importBtn');
+  const importFileInput = document.getElementById('importFileInput');
+  if(importBtn) importBtn.onclick = ()=> importFileInput.click();
+  if(importFileInput) importFileInput.onchange = (e)=>{
+    if(e.target.files && e.target.files[0]){ pushUndo(); importFromExcel(e.target.files[0]); }
+    importFileInput.value = "";
+  };
+
+  const themeBtn = document.getElementById('themeBtn');
+  if(themeBtn) themeBtn.onclick = toggleTheme;
+  const soundBtn = document.getElementById('soundBtn');
+  if(soundBtn) soundBtn.onclick = toggleSound;
+  const undoBtn = document.getElementById('undoBtn');
+  if(undoBtn) undoBtn.onclick = undo;
+  const pinBtn = document.getElementById('pinBtn');
+  if(pinBtn) pinBtn.onclick = showPinInfoModal;
+
+  const labSearch = document.getElementById('labSearch');
+  if(labSearch){
+    labSearch.oninput = ()=>{
+      labFilter = labSearch.value;
+      render();
+      setTimeout(()=>{
+        const el = document.getElementById('labSearch');
+        if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      },0);
+    };
+  }
+  const cmdSearch = document.getElementById('cmdSearch');
+  if(cmdSearch){
+    cmdSearch.oninput = ()=>{
+      cmdFilter = cmdSearch.value;
+      render();
+      setTimeout(()=>{
+        const el = document.getElementById('cmdSearch');
+        if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      },0);
+    };
+  }
+
+  document.querySelectorAll('[data-skill-field]').forEach(el=>{
+    el.onchange = ()=>{
+      const [id, field] = el.getAttribute('data-skill-field').split(':');
+      const row = findById(state.skills, parseInt(id));
+      row[field] = el.value;
+      queueSave();
+      if(field==='confidence') render();
+    };
+  });
+
+  document.getElementById('addLabBtn') && (document.getElementById('addLabBtn').onclick = ()=>{
+    pushUndo();
+    const nid = (state.labs.reduce((m,l)=>Math.max(m,l.id),0))+1;
+    state.labs.push({id:nid, platform:"", machine:"", difficulty:"Easy", os:"Linux", started:"", completed:"", timeSpent:"", foothold:"", privesc:"", hintsUsed:0, rooted:false, reportDone:false, keyLesson:""});
+    queueSave(); render();
+  });
+  document.querySelectorAll('[data-lab-field]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-lab-field').split(':'); findById(state.labs,parseInt(id))[f]=el.value; queueSave(); };
+  });
+  document.querySelectorAll('[data-lab-check]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-lab-check').split(':'); findById(state.labs,parseInt(id))[f]=el.checked; queueSave(); render(); };
+  });
+  document.querySelectorAll('[data-lab-del]').forEach(el=>{
+    el.onclick = ()=>{ pushUndo(); const id=parseInt(el.getAttribute('data-lab-del')); state.labs = state.labs.filter(l=>l.id!==id); queueSave(); render(); };
+  });
+
+  document.getElementById('addCmdBtn') && (document.getElementById('addCmdBtn').onclick = ()=>{
+    pushUndo();
+    const nid = (state.commands.reduce((m,c)=>Math.max(m,c.id),0))+1;
+    state.commands.push({id:nid, category:"", command:"", purpose:"", whenToUse:"", example:"", relevance:"", practiced:false});
+    queueSave(); render();
+  });
+  document.querySelectorAll('[data-cmd-field]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-cmd-field').split(':'); findById(state.commands,parseInt(id))[f]=el.value; queueSave(); };
+  });
+  document.querySelectorAll('[data-cmd-check]').forEach(el=>{
+    el.onchange = ()=>{ const id=parseInt(el.getAttribute('data-cmd-check')); findById(state.commands,id).practiced = el.checked; queueSave(); };
+  });
+  document.querySelectorAll('[data-cmd-del]').forEach(el=>{
+    el.onclick = ()=>{ pushUndo(); const id=parseInt(el.getAttribute('data-cmd-del')); state.commands = state.commands.filter(c=>c.id!==id); queueSave(); render(); };
+  });
+
+  document.getElementById('addWeakBtn') && (document.getElementById('addWeakBtn').onclick = ()=>{
+    pushUndo();
+    const nid = (state.weaknesses.reduce((m,w)=>Math.max(m,w.id),0))+1;
+    state.weaknesses.push({id:nid, topic:"", problem:"", firstSeen:new Date().toISOString().slice(0,10), severity:"Medium", revisionNeeded:true, revisionDate:"", revised:false, result:"", confidence:0});
+    queueSave(); render();
+  });
+  document.querySelectorAll('[data-weak-field]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-weak-field').split(':'); findById(state.weaknesses,parseInt(id))[f]=el.value; queueSave(); };
+  });
+  document.querySelectorAll('[data-weak-check]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-weak-check').split(':'); findById(state.weaknesses,parseInt(id))[f]=el.checked; queueSave(); };
+  });
+  document.querySelectorAll('[data-weak-del]').forEach(el=>{
+    el.onclick = ()=>{ pushUndo(); const id=parseInt(el.getAttribute('data-weak-del')); state.weaknesses = state.weaknesses.filter(w=>w.id!==id); queueSave(); render(); };
+  });
+
+  document.getElementById('addWeekBtn') && (document.getElementById('addWeekBtn').onclick = ()=>{
+    pushUndo();
+    const nid = (state.weeklyReviews.reduce((m,w)=>Math.max(m,w.id),0))+1;
+    state.weeklyReviews.push({id:nid, week:"Week "+nid, plannedHrs:"", actualHrs:"", completionPct:"", machinesDone:"", weakAreas:"", strongAreas:"", reviseNext:"", stopWasting:"", nextPriority:""});
+    queueSave(); render();
+  });
+  document.querySelectorAll('[data-week-field]').forEach(el=>{
+    el.onchange = ()=>{ const [id,f]=el.getAttribute('data-week-field').split(':'); findById(state.weeklyReviews,parseInt(id))[f]=el.value; queueSave(); };
+  });
+  document.querySelectorAll('[data-week-del]').forEach(el=>{
+    el.onclick = ()=>{ pushUndo(); const id=parseInt(el.getAttribute('data-week-del')); state.weeklyReviews = state.weeklyReviews.filter(w=>w.id!==id); queueSave(); render(); };
+  });
+
+  document.querySelectorAll('[data-mock-field]').forEach(el=>{
+    const evt = el.tagName==='TEXTAREA' ? 'oninput' : 'onchange';
+    el[evt] = ()=>{ const [id,f]=el.getAttribute('data-mock-field').split(':'); findById(state.mocks,parseInt(id))[f]=el.value; queueSave(); };
+  });
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+(async function init(){
+  document.getElementById('app').innerHTML = `<div style="padding:60px;text-align:center;font-family:var(--mono);color:var(--text-faint);">Loading operator log…</div>`;
+  if('serviceWorker' in navigator){
+    try{ await navigator.serviceWorker.register('/sw.js'); }catch(e){ console.warn('SW registration failed', e); }
+  }
+  await loadState();
+  applyTheme();
+  render();
+  startGlobalTick();
+  setupKeyboardShortcuts();
+})();
+</script>
+</body>
+</html>
