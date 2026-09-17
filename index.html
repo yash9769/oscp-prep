@@ -69,6 +69,39 @@
   .hstat b.green{color:var(--green);}
   .hstat b.red{color:var(--red);}
 
+  /* ===== TRACK SWITCH ===== */
+  .track-switch{
+    display:flex;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:3px;
+    gap:2px;flex-shrink:0;
+  }
+  .track-opt{
+    background:transparent;border:none;color:var(--text-dim);font-family:var(--mono);font-weight:700;
+    font-size:11.5px;letter-spacing:.5px;padding:8px 16px;border-radius:6px;transition:all .15s;
+  }
+  .track-opt.active{background:var(--amber-glow);color:var(--amber);box-shadow:0 0 0 1px var(--amber-dim) inset;}
+  @media(max-width:760px){
+    .track-switch{order:3;width:100%;}
+    .track-opt{flex:1;padding:11px 10px;font-size:12.5px;}
+  }
+
+  /* ===== CONCEPTS TAB ===== */
+  .concept-row{
+    display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);
+    border-radius:8px;background:var(--panel);margin-bottom:8px;flex-wrap:wrap;
+  }
+  .concept-name{flex:1;min-width:160px;font-size:13px;color:var(--text);}
+  .concept-status{
+    display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;
+    padding:5px 10px;border-radius:6px;border:1px solid var(--border);color:var(--text-faint);white-space:nowrap;
+  }
+  .concept-status.done{border-color:var(--green);color:var(--green);background:rgba(79,191,107,0.1);}
+  .concept-status.pending{border-color:var(--amber-dim);color:var(--amber);}
+  .concept-badge{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+    padding:4px 9px;border-radius:6px;border:1px solid var(--green);color:var(--green);
+    background:rgba(79,191,107,0.1);margin-top:8px;
+  }
+
   /* ===== KILL CHAIN RAIL ===== */
   .rail-wrap{border-bottom:1px solid var(--border);background:var(--panel);padding:14px 22px;overflow-x:auto;}
   .rail{display:flex;align-items:center;min-width:max-content;}
@@ -116,13 +149,17 @@
     .rail-line{width:14px;}
     .body{flex-direction:column;}
     .sidebar{
-      width:100%;display:flex;overflow-x:auto;gap:4px;padding:8px 10px;
-      border-right:none;border-bottom:1px solid var(--border);
-      -webkit-overflow-scrolling:touch;
-      position:sticky;top:0;z-index:40;background:var(--panel);
+      width:100%;display:flex;overflow-x:auto;gap:4px;padding:7px 8px calc(7px + env(safe-area-inset-bottom));
+      border-right:none;border-top:1px solid var(--border);border-bottom:none;
+      -webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;
+      position:fixed;bottom:0;left:0;right:0;z-index:60;background:var(--panel);
+      box-shadow:0 -2px 10px rgba(0,0,0,.25);
     }
-    .navitem{flex-shrink:0;margin-bottom:0;white-space:nowrap;}
-    .main{padding:14px;}
+    .navitem{
+      flex-shrink:0;margin-bottom:0;white-space:nowrap;scroll-snap-align:start;
+      min-height:44px;min-width:44px;display:flex;align-items:center;
+    }
+    .main{padding:14px;padding-bottom:calc(66px + env(safe-area-inset-bottom));}
     .grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}
     .readiness-ring{flex-direction:column;align-items:flex-start;text-align:left;}
     .day-controls{gap:6px;}
@@ -239,7 +276,11 @@
   .toast.show{opacity:1;}
   .toast.err{border-color:var(--red);color:var(--red);}
   .toast.ok{border-color:var(--green);color:var(--green);}
-  @media(max-width:760px){ .io-btns{flex-wrap:wrap;} }
+  @media(max-width:760px){
+    .io-btns{flex-wrap:wrap;}
+    .save-indicator{bottom:calc(66px + env(safe-area-inset-bottom));right:12px;}
+    .toast{bottom:calc(66px + env(safe-area-inset-bottom));left:12px;}
+  }
 
   /* ===== LIGHT THEME ===== */
   html.light-theme{
@@ -349,8 +390,41 @@
 /* =========================================================
    DATA MODEL
    ========================================================= */
-const PHASES = ["Foundations","Enumeration","Initial Access","Web Exploitation","Linux Privesc","Windows Privesc","Active Directory","Password Attacks","Client-Side Attacks","Exploit Dev Basics","Post-Exploitation","Full Attack Chains","OSCP Lab Practice","Mock Exams","Exam Prep"];
-const PHASE_SHORT = ["FOUND","ENUM","INIT-AX","WEB","LNX-PE","WIN-PE","AD","PASS","CLIENT","EXP-DEV","POST-EX","CHAINS","LABS","MOCKS","EXAM"];
+const OSCP_PHASES = ["Foundations","Enumeration","Initial Access","Web Exploitation","Linux Privesc","Windows Privesc","Active Directory","Password Attacks","Client-Side Attacks","Exploit Dev Basics","Post-Exploitation","Full Attack Chains","OSCP Lab Practice","Mock Exams","Exam Prep"];
+const OSCP_PHASE_SHORT = ["FOUND","ENUM","INIT-AX","WEB","LNX-PE","WIN-PE","AD","PASS","CLIENT","EXP-DEV","POST-EX","CHAINS","LABS","MOCKS","EXAM"];
+const EJPT_PHASES = ["Assessment Methodology","Host & Network Auditing","Network Security","System Security","Vulnerability Assessment","Web App Security","Exam Prep"];
+const EJPT_PHASE_SHORT = ["METHOD","AUDIT","NET-SEC","SYS-SEC","VULN-AX","WEB-SEC","EXAM"];
+
+function activePhases(){ return state.meta.track==='ejpt' ? EJPT_PHASES : OSCP_PHASES; }
+function activePhaseShort(){ return state.meta.track==='ejpt' ? EJPT_PHASE_SHORT : OSCP_PHASE_SHORT; }
+function trackLabel(t){ return t==='ejpt' ? 'eJPT' : 'OSCP'; }
+
+/* Concept tags shared between tracks — when a concept is completed on one track,
+   the other track's matching days surface that so the same ground isn't re-studied blind. */
+const CONCEPTS_META = {
+  "tcpip-fundamentals":"TCP/IP fundamentals",
+  "subnetting":"Subnetting",
+  "core-protocols":"Core protocols (SMB/FTP/SSH/HTTP/DNS)",
+  "protocols-hands-on":"Protocols — hands-on CLI use",
+  "linux-cli-basics":"Linux CLI basics",
+  "linux-users-processes":"Linux users, permissions & processes",
+  "bash-scripting-basics":"Bash scripting basics",
+  "linux-services-cron":"Linux services & cron",
+  "nmap-fundamentals":"Nmap fundamentals",
+  "nmap-nse":"Nmap Scripting Engine (NSE)",
+  "enumeration-methodology":"Enumeration methodology",
+  "web-enum-tools":"Web enumeration (ffuf/gobuster)",
+  "netcat-basics":"Netcat basics",
+  "independent-enumeration":"Independent/timed enumeration",
+  "smb-enumeration":"SMB enumeration",
+  "windows-fundamentals":"Windows fundamentals & CLI",
+  "vulnerability-assessment":"Vulnerability assessment methodology",
+  "metasploit-basics":"Metasploit framework basics",
+  "password-attacks":"Password / credential attacks",
+  "web-app-attacks":"Web application attacks (SQLi/XSS/etc.)",
+  "authentication-attacks":"Authentication attack techniques",
+  "report-writing":"Report writing"
+};
 
 function defaultState(){
   const today = new Date();
@@ -361,13 +435,15 @@ function defaultState(){
       examDate:"2027-06-01",
       currentDay:1,
       streak:0,
-      missedDays:0
+      missedDays:0,
+      track:"oscp"
     },
     settings:{
       theme:"dark",
       sound:true
     },
-    days: buildPhase1Days(),
+    oscpDays: buildPhase1Days(),
+    ejptDays: buildEjptDays(),
     skills: defaultSkills(),
     labs: [],
     commands: defaultCommands(),
@@ -425,11 +501,12 @@ function defaultCommands(){
 
 function buildPhase1Days(){
   const D = [];
-  const mk = (day,objective,topic,subtopics,theory,practical,lab,tools,tasks,est,priority,difficulty)=>({
-    id:day, day, phase:"Foundations", objective, topic, subtopics, theory, practical, lab, tools,
-    tasks: tasks.map((t,i)=>({id:day+"-"+i, text:t, done:false})),
+  const mk = (day,objective,topic,subtopics,theory,practical,lab,tools,tasks,est,priority,difficulty,concepts)=>({
+    id:day, day, phase:"Foundations", track:"oscp", objective, topic, subtopics, theory, practical, lab, tools,
+    tasks: tasks.map((t,i)=>({id:"oscp-"+day+"-"+i, text:t, done:false})),
     estHours:est, actHours:"", priority, difficulty, confidence:0,
-    status:"Not started", notes:"", completed:false, completedDate:"", timerStart:""
+    status:"Not started", notes:"", completed:false, completedDate:"", timerStart:"",
+    concepts: concepts||[]
   });
 
   // Week 1 — Networking, with deliberate retention drills since this is the stated weak point
@@ -437,13 +514,13 @@ function buildPhase1Days(){
     "Watch one short video on the TCP/IP model + OSI layers (pick ONE course, don't stack multiple).",
     "Draw the TCP/IP model from memory (no notes). Then explain out loud, in your own words, what happens when you visit a website.",
     "None — theory + self-test day","Pen & paper / whiteboard app",
-    ["Watch TCP/IP model video (max 30 min)","Draw the 4-layer model from memory","Explain HTTP request flow out loud in your own words","Write 5-line summary in your own notes app","Self-test: can you explain it without looking? (yes/no)"],1.5,"High","Easy"));
+    ["Watch TCP/IP model video (max 30 min)","Draw the 4-layer model from memory","Explain HTTP request flow out loud in your own words","Write 5-line summary in your own notes app","Self-test: can you explain it without looking? (yes/no)"],1.5,"High","Easy",["tcpip-fundamentals"]));
 
   D.push(mk(2,"Understand IP addressing and subnetting well enough to calculate manually","Subnetting","IPv4 addressing, CIDR notation, subnet masks",
     "Read/watch a short subnetting explainer (15-20 min max).",
     "Manually calculate 5 subnetting problems WITHOUT a subnet calculator. Check answers only after attempting.",
     "None","subnetting practice site (manual first, verify after)",
-    ["Learn CIDR notation basics","Manually solve subnet problem #1-5 on paper","Check answers, note mistakes","Redo any problem you got wrong","Write down the ONE rule that keeps confusing you"],1.5,"High","Medium"));
+    ["Learn CIDR notation basics","Manually solve subnet problem #1-5 on paper","Check answers, note mistakes","Redo any problem you got wrong","Write down the ONE rule that keeps confusing you"],1.5,"High","Medium",["subnetting"]));
 
   D.push(mk(3,"Retention drill — recall Day 1-2 content without new material","Retention check (Networking)","TCP/IP recap, subnetting recap",
     "No new theory today — this is deliberate.",
@@ -455,13 +532,13 @@ function buildPhase1Days(){
     "Read a short reference on SMB/FTP/SSH/HTTP/DNS — what each protocol is FOR, not just port numbers.",
     "Make yourself a one-page protocol cheat sheet (port, purpose, common risk) — in your own words, not copy-pasted.",
     "None","Notes app",
-    ["Learn SMB purpose + default port","Learn FTP purpose + default port","Learn SSH purpose + default port","Learn HTTP/HTTPS purpose + default port","Learn DNS purpose + default port","Build your own 1-page cheat sheet"],2,"High","Easy"));
+    ["Learn SMB purpose + default port","Learn FTP purpose + default port","Learn SSH purpose + default port","Learn HTTP/HTTPS purpose + default port","Learn DNS purpose + default port","Build your own 1-page cheat sheet"],2,"High","Easy",["core-protocols"]));
 
   D.push(mk(5,"See these protocols in action, not just in theory","Protocols — hands-on intro","Connecting to services from the CLI",
     "Skim how to connect to FTP/SSH from a Linux terminal (5-10 min).",
     "In a THM/TryHackMe free room or local VM: connect to an FTP server anonymously, SSH into something, and note what you see.",
     "TryHackMe free intro networking room","ftp, ssh clients",
-    ["Anonymous FTP login attempt","SSH connection attempt","Note exactly what output/banners you see","Write 3 lines: what info did the banner leak?"],1.5,"Medium","Medium"));
+    ["Anonymous FTP login attempt","SSH connection attempt","Note exactly what output/banners you see","Write 3 lines: what info did the banner leak?"],1.5,"Medium","Medium",["protocols-hands-on"]));
 
   D.push(mk(6,"Weekend — deeper practice with more time","Networking applied","Full protocol walkthrough on a real lab machine",
     "No new theory — apply everything from this week.",
@@ -480,13 +557,13 @@ function buildPhase1Days(){
     "Skim a Linux basics reference for ls, cp, mv, rm, cat, less, file permissions (chmod numbers).",
     "In a Linux VM/terminal: create a directory tree, move/copy/delete files, chmod a file to different permission levels, and explain what each permission number means.",
     "Local Linux VM or TryHackMe Linux fundamentals room","bash",
-    ["ls -la, cd, pwd, mkdir, touch practice","cp, mv, rm on real files","chmod 755 / 644 / 700 — explain what each does","cat, less, head, tail on a text file","Write your own 10-command cheat sheet"],2,"High","Easy"));
+    ["ls -la, cd, pwd, mkdir, touch practice","cp, mv, rm on real files","chmod 755 / 644 / 700 — explain what each does","cat, less, head, tail on a text file","Write your own 10-command cheat sheet"],2,"High","Easy",["linux-cli-basics"]));
 
   D.push(mk(9,"Understand users, permissions, and processes","Linux users & processes","whoami, id, ps, users, groups, permission model",
     "Skim how Linux users/groups/permissions relate (10-15 min).",
     "On your VM: check current user with whoami/id, list running processes with ps aux, list users on the system, and explain in your own words what a permission bit means for privesc later.",
     "Local Linux VM","whoami, id, ps, cat /etc/passwd",
-    ["whoami, id — read the output correctly","ps aux — identify what's running","cat /etc/passwd — list all users","Explain: why would an attacker care about this?"],1.5,"High","Easy"));
+    ["whoami, id — read the output correctly","ps aux — identify what's running","cat /etc/passwd — list all users","Explain: why would an attacker care about this?"],1.5,"High","Easy",["linux-users-processes"]));
 
   D.push(mk(10,"Retention drill — Linux basics","Retention check (Linux)","Recall Day 8-9 commands without reference",
     "None.",
@@ -498,13 +575,13 @@ function buildPhase1Days(){
     "Skim a short bash scripting basics guide (variables, if, for loop) — 15-20 min.",
     "Write ONE simple bash script yourself: a script that pings a list of 5 IPs and prints which ones respond. Do not copy-paste — type every line.",
     "Local terminal","bash, ping",
-    ["Learn variable syntax in bash","Learn a basic for loop","Write a 5-IP ping-sweep script by hand","Run it, fix errors yourself before asking for help"],2,"Medium","Medium"));
+    ["Learn variable syntax in bash","Learn a basic for loop","Write a 5-IP ping-sweep script by hand","Run it, fix errors yourself before asking for help"],2,"Medium","Medium",["bash-scripting-basics"]));
 
   D.push(mk(12,"Services and cron — common privesc territory later","Linux services & cron","systemctl basics, crontab, scheduled tasks",
     "Skim what services/cron jobs are and why they matter for privilege escalation (10 min).",
     "On your VM: list running services with systemctl list-units, view your crontab, and write 2 lines on why a misconfigured cron job could be a privesc path.",
     "Local Linux VM","systemctl, crontab -l",
-    ["systemctl list-units --type=service","crontab -l (view scheduled tasks)","cat /etc/crontab","Write 2 lines: why does this matter for privesc?"],1.5,"Medium","Medium"));
+    ["systemctl list-units --type=service","crontab -l (view scheduled tasks)","cat /etc/crontab","Write 2 lines: why does this matter for privesc?"],1.5,"Medium","Medium",["linux-services-cron"]));
 
   D.push(mk(13,"Apply Linux skills against a real (easy) target","Linux applied","SSH into an easy lab box and explore independently",
     "No new theory.",
@@ -523,43 +600,163 @@ function buildPhase1Days(){
     "Read Nmap's own basic usage docs for -sC, -sV, -sS, -sU, -p-, -T4, -oN/-oA — understand WHY each flag exists.",
     "Run a full scan against a lab target and, for every flag used, write one sentence explaining what it does and why you chose it.",
     "TryHackMe/VulnHub target","nmap",
-    ["-sC -sV scan with explanation of each flag","-p- full port scan","-sU UDP scan (top ports)","Explain -oN vs -oA output formats","Write your own annotated Nmap cheat sheet"],2,"High","Medium"));
+    ["-sC -sV scan with explanation of each flag","-p- full port scan","-sU UDP scan (top ports)","Explain -oN vs -oA output formats","Write your own annotated Nmap cheat sheet"],2,"High","Medium",["nmap-fundamentals"]));
 
   D.push(mk(16,"Learn Nmap Scripting Engine (NSE) basics","NSE basics","Common useful scripts (vuln, default, smb-enum, http-enum)",
     "Skim NSE categories and 3-4 commonly useful scripts (10-15 min).",
     "Run --script=default,vuln against a lab target. Read the output and explain in your own words what 2 findings mean.",
     "TryHackMe/VulnHub target","nmap --script",
-    ["Learn NSE script categories","Run default + vuln scripts against a target","Pick 2 findings and explain them in your own words","Note anything you didn't understand"],1.5,"Medium","Medium"));
+    ["Learn NSE script categories","Run default + vuln scripts against a target","Pick 2 findings and explain them in your own words","Note anything you didn't understand"],1.5,"Medium","Medium",["nmap-nse"]));
 
   D.push(mk(17,"Move from port scan to attack surface thinking","Enumeration methodology","Turning scan results into a plan of attack",
     "Skim a short guide on 'enumeration methodology' — the idea of going service by service, not randomly.",
     "Take yesterday's scan results and, for EACH open port, write what you would check next and why (before actually doing it).",
     "Same target as Day 15-16","nmap, notes",
-    ["List every open port from your scan","For each port: what service, what's the next enumeration step, why","Prioritize which port to investigate first and justify it","This becomes your enumeration checklist template"],2,"High","Medium"));
+    ["List every open port from your scan","For each port: what service, what's the next enumeration step, why","Prioritize which port to investigate first and justify it","This becomes your enumeration checklist template"],2,"High","Medium",["enumeration-methodology"]));
 
   D.push(mk(18,"First hands-on with ffuf and Gobuster — properly this time","Web enumeration tools","ffuf and Gobuster for directory/file fuzzing",
     "Skim ffuf and Gobuster basic syntax (10 min) — you've heard the names, now actually use them.",
     "Run ffuf AND Gobuster against a lab web target with a real wordlist. Compare results. Explain in your own words what a 200 vs 403 vs 301 response means.",
     "TryHackMe/VulnHub web target","ffuf, gobuster",
-    ["Run ffuf directory fuzzing on target","Run gobuster directory fuzzing same target","Compare results — did they differ?","Explain HTTP status codes 200/301/403/404 in your own words"],2,"High","Medium"));
+    ["Run ffuf directory fuzzing on target","Run gobuster directory fuzzing same target","Compare results — did they differ?","Explain HTTP status codes 200/301/403/404 in your own words"],2,"High","Medium",["web-enum-tools"]));
 
   D.push(mk(19,"Netcat fundamentals — you'll use this every single engagement","Netcat basics","Listeners, banner grabbing, simple shells",
     "Skim Netcat basic usage (10 min).",
     "Set up a Netcat listener, connect to it from another terminal, and manually banner-grab 2 services on a lab target using nc.",
     "Local VM + lab target","netcat",
-    ["Set up nc -lvnp listener","Connect from a second terminal, send a message","Banner-grab 2 open services using nc <ip> <port>","Write down what info banner grabbing revealed"],1.5,"Medium","Medium"));
+    ["Set up nc -lvnp listener","Connect from a second terminal, send a message","Banner-grab 2 open services using nc <ip> <port>","Write down what info banner grabbing revealed"],1.5,"Medium","Medium",["netcat-basics"]));
 
   D.push(mk(20,"Timed independent enumeration exercise — no help allowed","Independent enumeration","Full enumeration of a new, unseen target within a time box",
     "None — this is a practical test day.",
     "Pick a NEW easy TryHackMe/VulnHub box you have not seen before. Set a 45-minute timer. Enumerate it fully (nmap, NSE, ffuf/gobuster, manual checks) with ZERO help — no ChatGPT, no walkthrough. Stop when the timer ends regardless of outcome.",
     "New, unseen easy box","nmap, ffuf/gobuster, netcat",
-    ["Set a 45-min timer before starting","Full enumeration attempt — no external help","Stop exactly at 45 min, note where you got to","Write down: what would have taken too long in a real exam?","Log this as your first honest independent-enumeration data point"],3,"High","Medium"));
+    ["Set a 45-min timer before starting","Full enumeration attempt — no external help","Stop exactly at 45 min, note where you got to","Write down: what would have taken too long in a real exam?","Log this as your first honest independent-enumeration data point"],3,"High","Medium",["independent-enumeration"]));
 
   D.push(mk(21,"Phase 1 Assessment — Foundations","Phase Assessment","Practical checkpoint before moving to Enumeration phase",
     "Review Week 1-3 notes briefly.",
     "Complete the Phase Assessment checklist below. Be honest — this determines whether Phase 2 starts on schedule or gets a remediation week inserted first.",
     "Any easy, previously unseen box","Full toolkit so far",
     ["[ASSESSMENT] Enumerate an unknown target within 30 minutes","[ASSESSMENT] Correctly identify likely attack surface from scan results","[ASSESSMENT] Explain TCP/IP + subnetting without notes","[ASSESSMENT] Navigate Linux filesystem + permissions without notes","[ASSESSMENT] Explain every Nmap flag you used, unprompted","Mark PASS only if you did these with genuinely minimal hesitation"],2,"High","Hard"));
+
+  return D;
+}
+
+/* =========================================================
+   eJPT DAY PLAN — shorter, exam-domain-aligned track.
+   Days that cover the same ground as an OSCP day carry the same
+   concept tag so progress is visible across both tracks.
+   ========================================================= */
+function buildEjptDays(){
+  const D = [];
+  const mk = (day,objective,topic,subtopics,theory,practical,lab,tools,tasks,est,priority,difficulty,phase,concepts)=>({
+    id:day, day, phase, track:"ejpt", objective, topic, subtopics, theory, practical, lab, tools,
+    tasks: tasks.map((t,i)=>({id:"ejpt-"+day+"-"+i, text:t, done:false})),
+    estHours:est, actHours:"", priority, difficulty, confidence:0,
+    status:"Not started", notes:"", completed:false, completedDate:"", timerStart:"",
+    concepts: concepts||[]
+  });
+
+  D.push(mk(1,"Understand how data actually moves across a network","TCP/IP & networking basics","OSI vs TCP/IP model, IP addressing, subnetting",
+    "Read/watch a TCP/IP model + subnetting primer.",
+    "Draw the TCP/IP model from memory and manually solve 3 subnetting problems.",
+    "None — theory + self-test","Pen & paper",
+    ["Draw the 4-layer model from memory","Solve 3 subnetting problems by hand","Write a 5-line summary in your own words"],1.5,"High","Easy","Assessment Methodology",["tcpip-fundamentals","subnetting"]));
+
+  D.push(mk(2,"Learn the assessment methodology eJPT expects","Assessment methodology","Pre-engagement, information gathering, scanning, exploitation, reporting phases",
+    "Read the standard pentest methodology (recon → scan → exploit → post-ex → report).",
+    "Write your own one-page version of the methodology in your own words.",
+    "None","Notes app",
+    ["List the 5 methodology phases","Explain what happens in each phase","Write why skipping recon causes problems later"],1.5,"High","Easy","Assessment Methodology",["enumeration-methodology"]));
+
+  D.push(mk(3,"Master Nmap for host & network auditing","Nmap host/network auditing","Host discovery, TCP/UDP scans, service/version detection, NSE",
+    "Read Nmap docs for -sn, -sS, -sV, -sU, -p-, --script.",
+    "Run a host-discovery sweep on a lab subnet, then a full -sC -sV scan on one host. Explain every flag used.",
+    "TryHackMe/INE lab subnet","nmap",
+    ["Host discovery sweep (-sn) across subnet","-sC -sV scan on one host","Run one NSE vuln script","Explain each flag used in your own words"],2,"High","Medium","Host & Network Auditing",["nmap-fundamentals","nmap-nse"]));
+
+  D.push(mk(4,"Get comfortable with core service protocols","Core protocols","SMB, FTP, SSH, HTTP, DNS, Telnet basics",
+    "Read a short reference on SMB/FTP/SSH/HTTP/DNS/Telnet — purpose and default port.",
+    "Build a one-page protocol cheat sheet in your own words.",
+    "None","Notes app",
+    ["Learn purpose + port for SMB/FTP/SSH/HTTP/DNS/Telnet","Build your own cheat sheet"],1.5,"High","Easy","Host & Network Auditing",["core-protocols"]));
+
+  D.push(mk(5,"Enumerate SMB and FTP like the exam expects","SMB & FTP enumeration","smbclient, enum4linux, anonymous FTP",
+    "Skim smbclient/enum4linux/anonymous-FTP basics.",
+    "Enumerate a lab host's SMB shares and attempt anonymous FTP login; note everything you find.",
+    "TryHackMe/INE lab host","smbclient, enum4linux, ftp",
+    ["List SMB shares with smbclient -L","Run enum4linux -a against target","Attempt anonymous FTP login","Note every piece of info leaked"],2,"High","Medium","Host & Network Auditing",["smb-enumeration","protocols-hands-on"]));
+
+  D.push(mk(6,"Learn Linux fundamentals for auditing a host from the inside","Linux host auditing","Filesystem navigation, users, permissions, processes",
+    "Skim Linux basics: ls/cd/chmod/whoami/ps.",
+    "In a Linux VM: navigate the filesystem, check permissions, list users and running processes.",
+    "Local Linux VM","bash",
+    ["ls -la, cd, chmod practice","whoami, id, ps aux","cat /etc/passwd — list users","Write down why each matters for auditing"],2,"High","Easy","Host & Network Auditing",["linux-cli-basics","linux-users-processes"]));
+
+  D.push(mk(7,"Learn Windows fundamentals for auditing a host from the inside","Windows host auditing","CLI basics, whoami, systeminfo, net commands",
+    "Skim Windows CLI basics: whoami, systeminfo, net user, tasklist.",
+    "In a Windows VM: check current user/privileges, OS/patch info, local users, and running processes.",
+    "Local Windows VM","cmd, PowerShell",
+    ["whoami /priv","systeminfo","net user / net localgroup administrators","tasklist — identify running processes"],2,"High","Easy","Host & Network Auditing",["windows-fundamentals"]));
+
+  D.push(mk(8,"Understand network security concepts eJPT tests","Network security fundamentals","Firewalls, VPNs, sniffing, ARP, traffic analysis basics",
+    "Read a short primer on firewalls/VPNs/ARP and passive sniffing.",
+    "Capture traffic with Wireshark on a lab VM for 5 minutes and identify 3 protocols you see.",
+    "Local lab VM","Wireshark",
+    ["Capture 5 min of traffic","Identify 3 different protocols in the capture","Explain what ARP is used for in one paragraph"],2,"Medium","Medium","Network Security",[]));
+
+  D.push(mk(9,"Practice Netcat for banner grabbing and simple shells","Netcat basics","Listeners, banner grabbing, simple reverse/bind shells",
+    "Skim Netcat basic usage.",
+    "Set up a listener, banner-grab 2 services on a lab target, and catch a simple shell.",
+    "Local VM + lab target","netcat",
+    ["Set up nc -lvnp listener","Banner-grab 2 services","Catch a basic reverse shell in a lab VM"],1.5,"Medium","Medium","Network Security",["netcat-basics"]));
+
+  D.push(mk(10,"Learn vulnerability assessment methodology","Vulnerability assessment","Vulnerability scanning concepts, CVSS basics, false positives",
+    "Read a short primer on vulnerability scanning and CVSS scoring.",
+    "Run a vulnerability scan (Nmap NSE vuln scripts or Nessus/OpenVAS if available) against a lab target and triage 3 findings.",
+    "TryHackMe/INE lab target","nmap --script vuln, Nessus/OpenVAS (optional)",
+    ["Run a vulnerability scan against a target","Pick 3 findings and explain severity in your own words","Flag anything you suspect is a false positive"],2,"High","Medium","Vulnerability Assessment",["vulnerability-assessment"]));
+
+  D.push(mk(11,"Get hands-on with Metasploit basics","Metasploit framework","msfconsole, search, use, set options, exploit/auxiliary modules",
+    "Skim Metasploit basic usage: search, use, show options, set, exploit.",
+    "Use Metasploit to run one auxiliary scanner module and one exploit module against a lab target.",
+    "TryHackMe/INE lab target","msfconsole",
+    ["Search for a module with search","Configure options with set","Run an auxiliary scanner module","Run one exploit module against a vulnerable lab target"],2.5,"High","Medium","Vulnerability Assessment",["metasploit-basics"]));
+
+  D.push(mk(12,"Practice authentication and password attacks","Authentication attacks","Brute force, credential stuffing, default creds, hash cracking basics",
+    "Skim Hydra basic usage and hash-cracking basics (hashcat/John).",
+    "Brute-force a lab login with Hydra using a small wordlist, then crack one sample hash with hashcat/John.",
+    "TryHackMe/INE lab target","hydra, hashcat/John",
+    ["Brute-force an SSH or HTTP login with Hydra","Crack one sample hash with hashcat or John","Write down why default/weak creds are a common finding"],2,"High","Medium","System Security",["password-attacks","authentication-attacks"]));
+
+  D.push(mk(13,"Learn web application basics for the Web App Security domain","Web app attacks intro","HTTP methods, status codes, SQLi & XSS basics, directory fuzzing",
+    "Skim HTTP fundamentals and SQLi/XSS basics.",
+    "Run ffuf/gobuster against a lab web target, then attempt a basic SQLi and XSS in a deliberately vulnerable app (e.g. DVWA/Juice Shop).",
+    "DVWA / OWASP Juice Shop / lab web target","ffuf, gobuster, Burp Suite (optional)",
+    ["Directory-fuzz the target with ffuf/gobuster","Attempt a basic SQL injection in a vulnerable app","Attempt a basic reflected XSS in a vulnerable app","Explain HTTP status codes 200/301/403/404"],2.5,"High","Medium","Web App Security",["web-enum-tools","web-app-attacks"]));
+
+  D.push(mk(14,"System security — Windows & Linux privilege escalation basics","System security & privesc intro","SUID, sudo -l, cron, unquoted service paths, weak permissions",
+    "Skim common Linux and Windows privesc checks.",
+    "On a lab VM: run manual Linux privesc checks (sudo -l, SUID, cron) and note any escalation path you can reason about.",
+    "TryHackMe/INE easy privesc lab VM","bash, find, sudo -l",
+    ["sudo -l on a lab VM","find / -perm -4000 2>/dev/null","Check crontab -l and /etc/crontab","Write down one plausible privesc path and why"],2.5,"High","Medium","System Security",["linux-services-cron"]));
+
+  D.push(mk(15,"Timed independent audit — no help allowed","Independent host & network audit","Full enumeration + basic exploitation of an unseen target within a time box",
+    "None — practical test day.",
+    "Pick a new easy INE/TryHackMe box. Set a 45-minute timer. Enumerate and attempt exploitation with ZERO outside help.",
+    "New, unseen easy box","nmap, Metasploit, ffuf/gobuster, netcat",
+    ["Set a 45-min timer before starting","Full enumeration + exploitation attempt, no external help","Stop exactly at 45 min, note where you got to","Write down what you'd do differently"],3,"High","Medium","Vulnerability Assessment",["independent-enumeration"]));
+
+  D.push(mk(16,"Report writing for eJPT-style findings","Report writing","Structuring findings, evidence, and remediation clearly",
+    "Skim a sample pentest finding write-up.",
+    "Write one full finding (title, description, evidence/screenshot placeholder, risk, remediation) for something you found this track.",
+    "Notes from Day 3-15","Notes app",
+    ["Pick one real finding from this track","Write title + description + evidence + risk + remediation","Keep it to one page, plain language"],2,"Medium","Easy","Exam Prep",["report-writing"]));
+
+  D.push(mk(17,"eJPT Readiness Assessment","Phase Assessment","Practical checkpoint before sitting the exam",
+    "Review your notes from Day 1-16 briefly.",
+    "Complete the readiness checklist below. Be honest — the exam is timed and open-book, but you still need methodology speed.",
+    "Any easy, previously unseen box","Full toolkit so far",
+    ["[ASSESSMENT] Enumerate an unknown host within 20 minutes","[ASSESSMENT] Identify and use a relevant Metasploit module unprompted","[ASSESSMENT] Explain TCP/IP + subnetting without notes","[ASSESSMENT] Run a basic web app attack (SQLi or XSS) unprompted","[ASSESSMENT] Write one clean finding in under 15 minutes","Mark PASS only if you did these with genuinely minimal hesitation"],2,"High","Hard","Exam Prep",[]));
 
   return D;
 }
@@ -640,13 +837,31 @@ async function loadState(){
   if(!loadedFromCloud) queueSave();
 }
 
+function installDaysAccessor(obj){
+  Object.defineProperty(obj, 'days', {
+    configurable:true, enumerable:false,
+    get(){ return this.meta.track==='ejpt' ? this.ejptDays : this.oscpDays; },
+    set(v){ if(this.meta.track==='ejpt') this.ejptDays = v; else this.oscpDays = v; }
+  });
+}
+
 function migrateState(){
   if(!state.settings) state.settings = {theme:"dark", sound:true};
   if(state.settings.sound===undefined) state.settings.sound = true;
   if(!state.settings.theme) state.settings.theme = "dark";
-  (state.days||[]).forEach(d=>{
+  if(!state.meta.track) state.meta.track = "oscp";
+  // Back-compat: older saves only had a flat `days` array (OSCP-only).
+  if(!state.oscpDays){
+    state.oscpDays = Array.isArray(state.days) ? state.days : buildPhase1Days();
+  }
+  if(!state.ejptDays) state.ejptDays = buildEjptDays();
+  delete state.days;
+  installDaysAccessor(state);
+  [...state.oscpDays, ...state.ejptDays].forEach(d=>{
     if(d.completedDate===undefined) d.completedDate = "";
     if(d.timerStart===undefined) d.timerStart = "";
+    if(d.concepts===undefined) d.concepts = [];
+    if(d.track===undefined) d.track = state.oscpDays.includes(d) ? "oscp" : "ejpt";
   });
 }
 
@@ -736,7 +951,7 @@ function computeMetrics(){
 
   // current phase = phase of first non-completed day, else last phase
   const firstOpen = days.find(d=>!d.completed);
-  const currentPhase = firstOpen ? firstOpen.phase : (days.length? days[days.length-1].phase : PHASES[0]);
+  const currentPhase = firstOpen ? firstOpen.phase : (days.length? days[days.length-1].phase : activePhases()[0]);
   const currentDayNum = firstOpen ? firstOpen.day : (days.length? days[days.length-1].day+1 : 1);
 
   const weekNum = Math.ceil(currentDayNum/7);
@@ -786,11 +1001,16 @@ function render(){
 function renderTopbar(m){
   const examD = new Date(state.meta.examDate);
   const examStr = examD.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const track = state.meta.track;
   return `
   <div class="topbar">
     <div class="brand">
       <div class="dot"></div>
-      <div class="brand-text">OSCP::PREP <span class="dim">// operator log — Yash</span></div>
+      <div class="brand-text">${trackLabel(track).toUpperCase()}::PREP <span class="dim">// operator log — Yash</span></div>
+    </div>
+    <div class="track-switch" id="trackSwitch">
+      <button class="track-opt ${track==='oscp'?'active':''}" data-track="oscp">OSCP</button>
+      <button class="track-opt ${track==='ejpt'?'active':''}" data-track="ejpt">eJPT</button>
     </div>
     <div class="headstats">
       <div class="hstat"><span>Readiness</span><b class="amber">${m.readiness}<span style="font-size:11px;color:var(--text-faint)">/100</span></b></div>
@@ -815,15 +1035,17 @@ function renderTopbar(m){
 }
 
 function renderRail(m){
-  const currentIdx = PHASES.indexOf(m.currentPhase);
+  const phases = activePhases();
+  const phaseShort = activePhaseShort();
+  const currentIdx = phases.indexOf(m.currentPhase);
   return `<div class="rail-wrap"><div class="rail">
-    ${PHASES.map((p,i)=>{
+    ${phases.map((p,i)=>{
       const cls = i<currentIdx ? "done" : (i===currentIdx ? "active":"");
       const icon = i<currentIdx ? "✓" : String(i+1).padStart(2,'0');
       return `<div class="rail-seg ${cls}">
         <div class="rail-node">${icon}</div>
-        <div class="rail-label">${PHASE_SHORT[i]}</div>
-      </div>${i<PHASES.length-1?`<div class="rail-line ${i<currentIdx?'done':''}"></div>`:''}`;
+        <div class="rail-label">${phaseShort[i]}</div>
+      </div>${i<phases.length-1?`<div class="rail-line ${i<currentIdx?'done':''}"></div>`:''}`;
     }).join('')}
   </div></div>`;
 }
@@ -832,12 +1054,13 @@ function renderSidebar(){
   const items = [
     ["dashboard","01","Dashboard"],
     ["daily","02","Daily Log"],
-    ["skills","03","Skill Matrix"],
-    ["labs","04","Lab Tracker"],
-    ["commands","05","Commands"],
-    ["weak","06","Weak Points"],
-    ["weekly","07","Weekly Review"],
-    ["mocks","08","Mock Exams"],
+    ["concepts","03","Concepts"],
+    ["skills","04","Skill Matrix"],
+    ["labs","05","Lab Tracker"],
+    ["commands","06","Commands"],
+    ["weak","07","Weak Points"],
+    ["weekly","08","Weekly Review"],
+    ["mocks","09","Mock Exams"],
   ];
   return `<div class="sidebar">
     ${items.map(([id,n,label])=>`<div class="navitem ${activeTab===id?'active':''}" data-tab="${id}"><span class="n">${n}</span> ${label}</div>`).join('')}
@@ -848,6 +1071,7 @@ function renderTab(tab, m){
   switch(tab){
     case "dashboard": return renderDashboard(m);
     case "daily": return renderDaily(m);
+    case "concepts": return renderConcepts();
     case "skills": return renderSkills();
     case "labs": return renderLabs();
     case "commands": return renderCommands();
@@ -878,7 +1102,7 @@ function renderDashboard(m){
     </div>
     <button class="btn primary" id="jumpTodayBtn">Open Day ${todayDay.day} →</button>
   </div>` : `
-  <div class="focus-card"><div><div class="focus-eyebrow">Phase 1 Complete</div><div class="focus-title">Tell me in chat when you're ready — I'll generate Phase 2 (Enumeration).</div></div></div>`}
+  <div class="focus-card"><div><div class="focus-eyebrow">${trackLabel(state.meta.track)} Track Complete</div><div class="focus-title">${state.meta.track==='ejpt' ? "All eJPT days are logged. Switch to OSCP or keep drilling weak points." : "Tell me in chat when you're ready — I'll generate Phase 2 (Enumeration)."}</div></div></div>`}
 
   <div class="banner"><b>Reality check:</b> readiness is computed from skill confidence, independent lab completion (hints used), and mock exam performance — not just checklist completion. Ticking boxes without demonstrating a skill practically will NOT move this number much.</div>
 
@@ -976,15 +1200,33 @@ function renderHeatmap(){
 let openDayId = null;
 
 function renderDaily(m){
+  const track = state.meta.track;
+  const phaseLabel = track==='ejpt' ? 'eJPT exam-domain plan' : 'Phase 1: Foundations';
+  const subNote = track==='ejpt'
+    ? "17 days aligned to the eJPT exam domains. Days marked with a concept badge overlap topics already covered on the OSCP track."
+    : "21 days fully detailed. Later phases (Enumeration, Web Exploitation, AD, etc.) unlock and get generated once you're through this phase — this keeps the plan adaptive instead of a stale 300-row wall.";
   return `
-  <div class="section-title">Daily Log — Phase 1: Foundations</div>
-  <div class="section-sub">21 days fully detailed. Later phases (Enumeration, Web Exploitation, AD, etc.) unlock and get generated once you're through this phase — this keeps the plan adaptive instead of a stale 300-row wall.</div>
+  <div class="section-title">Daily Log — ${phaseLabel} <span style="color:var(--text-faint);">(${trackLabel(track)})</span></div>
+  <div class="section-sub">${subNote}</div>
   <div class="kbd-hint">With a day open: <kbd>Space</kbd> toggles its next task · <kbd>←</kbd>/<kbd>→</kbd> jumps between days</div>
   <div class="daylist" style="margin-top:12px;">
     ${state.days.map(d=>renderDayCard(d)).join('')}
   </div>
-  <div class="empty-note" style="margin-top:14px;">Phase 2 (Enumeration) generates once Day 21's assessment is marked complete. Just tell me in chat when you're there.</div>
+  ${track==='oscp' ? `<div class="empty-note" style="margin-top:14px;">Phase 2 (Enumeration) generates once Day 21's assessment is marked complete. Just tell me in chat when you're there.</div>` : ''}
   `;
+}
+
+function otherTrackCoverage(d){
+  if(!d.concepts || !d.concepts.length) return null;
+  const otherKey = d.track==='ejpt' ? 'oscp' : 'ejpt';
+  const otherDays = otherKey==='ejpt' ? state.ejptDays : state.oscpDays;
+  const hits = [];
+  d.concepts.forEach(c=>{
+    const match = (otherDays||[]).find(od=>od.completed && (od.concepts||[]).includes(c));
+    if(match) hits.push({concept:c, day:match});
+  });
+  if(!hits.length) return null;
+  return {otherKey, hits};
 }
 
 function renderDayCard(d){
@@ -993,6 +1235,7 @@ function renderDayCard(d){
   const isOpen = openDayId === d.id;
   const todayFlag = !d.completed && state.days.find(x=>!x.completed)===d;
   const timerRunning = !!d.timerStart;
+  const coverage = otherTrackCoverage(d);
   return `
   <div class="daycard ${todayFlag?'today':''} ${d.completed?'complete':''}">
     <div class="dayhead" data-day-toggle="${d.id}">
@@ -1009,6 +1252,7 @@ function renderDayCard(d){
       </div>
     </div>
     <div class="daybody ${isOpen?'open':''}">
+      ${coverage ? `<div class="concept-badge">✓ Already covered on ${trackLabel(coverage.otherKey)} — Day ${coverage.hits[0].day.day}: ${coverage.hits[0].day.topic}</div>` : ''}
       <div class="day-cols">
         <div>
           <div class="day-field"><div class="fl">Subtopics</div><div class="fv">${d.subtopics}</div></div>
@@ -1056,6 +1300,51 @@ function renderDayCard(d){
       </div>
     </div>
   </div>`;
+}
+
+/* =========================================================
+   CONCEPTS — shared progress across OSCP and eJPT
+   ========================================================= */
+function buildConceptStatus(){
+  const rows = [];
+  Object.keys(CONCEPTS_META).forEach(slug=>{
+    const oscpDays = state.oscpDays.filter(d=>(d.concepts||[]).includes(slug));
+    const ejptDays = state.ejptDays.filter(d=>(d.concepts||[]).includes(slug));
+    if(!oscpDays.length && !ejptDays.length) return;
+    rows.push({
+      slug, label: CONCEPTS_META[slug],
+      oscp:{ inTrack: !!oscpDays.length, done: oscpDays.some(d=>d.completed), days: oscpDays },
+      ejpt:{ inTrack: !!ejptDays.length, done: ejptDays.some(d=>d.completed), days: ejptDays }
+    });
+  });
+  return rows;
+}
+
+function renderConcepts(){
+  const rows = buildConceptStatus();
+  const mastered = rows.filter(r=>r.oscp.done || r.ejpt.done).length;
+  const shared = rows.filter(r=>r.oscp.inTrack && r.ejpt.inTrack).length;
+  return `
+  <div class="section-title">Concepts — cross-track progress</div>
+  <div class="section-sub">Concepts tagged on both OSCP and eJPT days. Complete either track's day and it's marked done here — and flagged as already-covered on the other track's matching day.</div>
+  <div class="grid grid-3" style="margin-bottom:16px;">
+    <div class="card"><div class="card-label">Tracked Concepts</div><div class="card-value">${rows.length}</div></div>
+    <div class="card"><div class="card-label">Mastered (either track)</div><div class="card-value green">${mastered}</div></div>
+    <div class="card"><div class="card-label">Shared by both tracks</div><div class="card-value amber">${shared}</div></div>
+  </div>
+  ${rows.map(r=>`
+    <div class="concept-row">
+      <div class="concept-name"><b>${r.label}</b></div>
+      <div class="concept-status ${!r.oscp.inTrack ? '' : (r.oscp.done ? 'done' : 'pending')}">
+        ${!r.oscp.inTrack ? 'OSCP — n/a' : (r.oscp.done ? '✓ OSCP done' : '○ OSCP pending')}
+      </div>
+      <div class="concept-status ${!r.ejpt.inTrack ? '' : (r.ejpt.done ? 'done' : 'pending')}">
+        ${!r.ejpt.inTrack ? 'eJPT — n/a' : (r.ejpt.done ? '✓ eJPT done' : '○ eJPT pending')}
+      </div>
+    </div>
+  `).join('')}
+  ${!rows.length ? `<div class="empty-note">No tagged concepts yet.</div>` : ''}
+  `;
 }
 
 /* =========================================================
@@ -1498,6 +1787,7 @@ function pushUndo(){
 function undo(){
   if(undoStack.length===0){ showToast('Nothing to undo this session', 'err'); return; }
   state = JSON.parse(undoStack.pop());
+  migrateState();
   applyTheme();
   queueSave();
   render();
@@ -1617,6 +1907,17 @@ function findById(arr,id){ return arr.find(x=>String(x.id)===String(id)); }
 function attachHandlers(){
   document.querySelectorAll('[data-tab]').forEach(el=>{
     el.onclick = ()=>{ activeTab = el.getAttribute('data-tab'); render(); };
+  });
+
+  document.querySelectorAll('[data-track]').forEach(el=>{
+    el.onclick = ()=>{
+      const t = el.getAttribute('data-track');
+      if(state.meta.track === t) return;
+      state.meta.track = t;
+      openDayId = null;
+      queueSave();
+      render();
+    };
   });
 
   document.querySelectorAll('[data-day-toggle]').forEach(el=>{
