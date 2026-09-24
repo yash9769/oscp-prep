@@ -231,6 +231,11 @@
   .day-field{margin-bottom:10px;}
   .day-field .fl{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px;}
   .day-field .fv{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .cmd-block{display:flex;flex-direction:column;gap:5px;}
+  .cmd-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;background:var(--panel-3);border:1px solid var(--border-soft);border-radius:6px;padding:7px 10px;}
+  .cmd-row code{font-family:var(--mono);font-size:12px;color:var(--amber);white-space:pre-wrap;word-break:break-word;}
+  .cmd-note{font-family:var(--sans);font-size:11px;color:var(--text-faint);margin-left:auto;}
+  @media(max-width:640px){ .cmd-note{margin-left:0;flex-basis:100%;} }
   .checklist{display:flex;flex-direction:column;gap:7px;margin-top:6px;}
   .chk{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--text);}
   .chk input{margin-top:2px;accent-color:var(--amber);cursor:pointer;}
@@ -395,9 +400,22 @@ const OSCP_PHASE_SHORT = ["FOUND","ENUM","INIT-AX","WEB","LNX-PE","WIN-PE","AD",
 const EJPT_PHASES = ["Assessment Methodology","Host & Network Auditing","Network Security","System Security","Vulnerability Assessment","Web App Security","Exam Prep"];
 const EJPT_PHASE_SHORT = ["METHOD","AUDIT","NET-SEC","SYS-SEC","VULN-AX","WEB-SEC","EXAM"];
 
-function activePhases(){ return state.meta.track==='ejpt' ? EJPT_PHASES : OSCP_PHASES; }
-function activePhaseShort(){ return state.meta.track==='ejpt' ? EJPT_PHASE_SHORT : OSCP_PHASE_SHORT; }
-function trackLabel(t){ return t==='ejpt' ? 'eJPT' : 'OSCP'; }
+/* PJPT rail — grouped from the official TCM PEH/PJPT areas plus the prerequisite
+   and supporting-skill days that lead into them. Kept to the phases the first
+   20 days actually cover. */
+const PJPT_PHASES = ["Methodology & Setup","Prerequisites","Recon & Scanning","Exploitation Basics","Web App Testing","Privilege Escalation","Active Directory","Final Assessment"];
+const PJPT_PHASE_SHORT = ["METHOD","PREREQ","RECON","EXPLOIT","WEB","PRIVESC","AD","ASSESS"];
+
+const TRACK_META = {
+  oscp:{ label:"OSCP", full:"Offensive Security Certified Professional", total:"+" },
+  ejpt:{ label:"eJPT", full:"eLearnJunior Penetration Tester", total:"" },
+  pjpt:{ label:"PJPT", full:"Practical Junior Penetration Tester", total:"" }
+};
+
+function activePhases(){ const t=state.meta.track; return t==='ejpt'?EJPT_PHASES : t==='pjpt'?PJPT_PHASES : OSCP_PHASES; }
+function activePhaseShort(){ const t=state.meta.track; return t==='ejpt'?EJPT_PHASE_SHORT : t==='pjpt'?PJPT_PHASE_SHORT : OSCP_PHASE_SHORT; }
+function trackLabel(t){ return (TRACK_META[t]||TRACK_META.oscp).label; }
+function trackFull(t){ return (TRACK_META[t]||TRACK_META.oscp).full; }
 
 /* Concept tags shared between tracks — when a concept is completed on one track,
    the other track's matching days surface that so the same ground isn't re-studied blind. */
@@ -423,7 +441,17 @@ const CONCEPTS_META = {
   "password-attacks":"Password / credential attacks",
   "web-app-attacks":"Web application attacks (SQLi/XSS/etc.)",
   "authentication-attacks":"Authentication attack techniques",
-  "report-writing":"Report writing"
+  "report-writing":"Report writing",
+  "host-discovery":"Nmap host discovery",
+  "port-service-enum":"Port & service enumeration",
+  "service-enumeration":"Service enumeration (FTP/SSH/SMB/HTTP/DNS)",
+  "burp-suite":"Burp Suite fundamentals",
+  "linux-privesc":"Linux privilege escalation",
+  "windows-privesc":"Windows privilege escalation",
+  "active-directory-basics":"Active Directory architecture",
+  "ad-enumeration":"Active Directory enumeration",
+  "ad-credential-attacks":"AD credential attacks",
+  "bloodhound":"BloodHound & AD attack paths"
 };
 
 function defaultState(){
@@ -444,16 +472,47 @@ function defaultState(){
     },
     oscpDays: buildPhase1Days(),
     ejptDays: buildEjptDays(),
+    pjptDays: buildPjptDays(),
+    // Per-track progress buckets — each track keeps its own skills, labs,
+    // commands, weaknesses, weekly reviews and mocks so switching tracks
+    // never overwrites another track's progress.
+    progress:{
+      oscp: defaultTrackProgress('oscp'),
+      ejpt: defaultTrackProgress('ejpt'),
+      pjpt: defaultTrackProgress('pjpt')
+    }
+  };
+}
+
+function defaultMocks(track){
+  if(track==='ejpt'){
+    return [
+      {id:1, phase:"Early Diagnostic", plannedWhen:"~ Day 8 (after Host & Network Auditing)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check on an easy unseen box."},
+      {id:2, phase:"eJPT Readiness Simulation", plannedWhen:"Day 17 (readiness assessment)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Timed, no external help. Methodology speed matters."}
+    ];
+  }
+  if(track==='pjpt'){
+    return [
+      {id:1, phase:"Mid-Prep Internal Test", plannedWhen:"~ Day 10 (after Exploitation Fundamentals)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Enumerate → exploit → get an initial foothold on an unseen lab host, unaided."},
+      {id:2, phase:"AD Attack-Path Drill", plannedWhen:"~ Day 19 (after BloodHound)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"From a low-priv AD foothold, chart one full path toward Domain Admin in a lab."},
+      {id:3, phase:"PJPT Mock Assessment", plannedWhen:"Day 20 — Mini Internal Penetration Test", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"2-day style internal test: recon → AD compromise → DC → professional report. No solution given — treat as the real exam."}
+    ];
+  }
+  return [
+    {id:1, phase:"Early Diagnostic", plannedWhen:"~ Week 10 (after Enumeration+Web phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check — expect a rough result. Purpose is diagnostic, not a pass/fail judgment."},
+    {id:2, phase:"Mid-Preparation", plannedWhen:"~ Week 26 (after AD + Privesc phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Should show clear improvement in independent enumeration and AD."},
+    {id:3, phase:"Final OSCP Simulation", plannedWhen:"2-3 weeks before exam date", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Full 23h45m timed simulation + report write-up within 24h of finishing."}
+  ];
+}
+
+function defaultTrackProgress(track){
+  return {
     skills: defaultSkills(),
     labs: [],
     commands: defaultCommands(),
     weaknesses: [],
     weeklyReviews: [],
-    mocks: [
-      {id:1, phase:"Early Diagnostic", plannedWhen:"~ Week 10 (after Enumeration+Web phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check — expect a rough result. Purpose is diagnostic, not a pass/fail judgment."},
-      {id:2, phase:"Mid-Preparation", plannedWhen:"~ Week 26 (after AD + Privesc phases)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Should show clear improvement in independent enumeration and AD."},
-      {id:3, phase:"Final OSCP Simulation", plannedWhen:"2-3 weeks before exam date", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Full 23h45m timed simulation + report write-up within 24h of finishing."}
-    ]
+    mocks: defaultMocks(track)
   };
 }
 
@@ -762,6 +821,592 @@ function buildEjptDays(){
 }
 
 /* =========================================================
+   PJPT DAY PLAN — Practical Junior Penetration Tester (TCM Security).
+   Source of truth: the official TCM PJPT certification page. The exam is an
+   associate-level INTERNAL NETWORK penetration test (Active Directory
+   exploitation, lateral + vertical movement, compromising the Domain
+   Controller, and professional report writing — 2 days practical + 2 days
+   report). TCM states the exam is based on the Practical Ethical Hacking
+   (PEH) course. Official PEH/PJPT areas used as `officialDomain` values:
+     1. A Day in the Life of an Ethical Hacker
+     2. Hacking Methodology
+     3. Reconnaissance and Information Gathering
+     4. Scanning and Enumeration
+     5. Exploitation Basics
+     6. Active Directory Penetration Testing
+     7. Web Application Penetration Testing
+     8. Wireless Attacks
+     9. Legal Documentation and Report Writing
+   These first 20 days take a beginner from prerequisite knowledge into the
+   actual PEH material. Prerequisite / supporting-skill days are labelled as
+   such in `officialDomain` so they stay distinct from official areas.
+   Days that overlap OSCP/eJPT ground carry the same concept tag.
+
+   COMMAND SAFETY: every command that touches a target is for the user's own
+   isolated lab or an explicitly authorised environment only (labelled
+   LAB ONLY). Nothing here is aimed at systems the user does not own or has
+   not been authorised to test.
+   ========================================================= */
+function buildPjptDays(){
+  const D = [];
+  const mk = (c)=>({
+    id:c.day, day:c.day, phase:c.phase, track:"pjpt",
+    officialDomain:c.officialDomain,
+    objective:c.title, topic:c.topic, subtopics:c.subtopics,
+    theory:c.theory, practical:c.practical, lab:c.lab, tools:c.tools,
+    commands:c.commands||[], exitCriteria:c.exit||"", prompt:c.prompt||"",
+    tasks:(c.tasks||[]).map((t,i)=>({id:"pjpt-"+c.day+"-"+i, text:t, done:false})),
+    estHours:c.est, actHours:"", priority:c.priority||"High", difficulty:c.difficulty||"Medium",
+    confidence:0, status:"Not started", notes:"", completed:false, completedDate:"", timerStart:"",
+    concepts:c.concepts||[]
+  });
+
+  D.push(mk({day:1, phase:"Methodology & Setup", officialDomain:"Hacking Methodology",
+    title:"Pentesting Methodology + Lab Setup",
+    topic:"What a pentest is, engagement workflow & building an isolated lab",
+    subtopics:"Rules of engagement, scope, the recon → enumeration → exploitation → privesc → lateral movement → reporting workflow, note-keeping",
+    theory:"LEARN: read/watch one overview of the professional pentest workflow and rules of engagement (scope, authorisation, don't-touch lists). UNDERSTAND: why each phase exists and what breaks if you skip one.",
+    practical:"RUN: build an isolated local lab (host-only/NAT network, no bridge to your real LAN). Verify Kali and each core tool works. DOCUMENT: create a dedicated notes directory and a reusable report template.",
+    lab:"Your own isolated VM lab (VirtualBox/VMware host-only network) + one deliberately vulnerable target VM (e.g. Metasploitable / a THM/HTB box).",
+    tools:"Kali Linux, Nmap, Burp Suite, VirtualBox/VMware, a note tool (Obsidian/CherryTree/markdown)",
+    commands:[
+      {c:"ip addr", note:"Confirm Kali's lab interface + IP"},
+      {c:"nmap --version", note:"Verify Nmap is installed"},
+      {c:"burpsuite &", note:"Launch Burp and confirm it opens (LAB ONLY workflow)"},
+      {c:"ping -c 3 <lab-target-ip>", note:"LAB ONLY — confirm you can reach your isolated target"},
+      {c:"mkdir -p ~/engagements/lab01/{scans,loot,notes,report}", note:"Establish a dedicated notes/report structure"}
+    ],
+    tasks:[
+      "Draw the full pentest workflow (recon → enum → exploit → privesc → lateral → report) from memory",
+      "Write your own one-paragraph rules-of-engagement / scope note for the lab",
+      "Build an isolated lab network (host-only or NAT) — confirm it cannot reach your real LAN",
+      "Verify Kali boots and updates; run nmap --version",
+      "Launch Burp Suite and confirm the proxy starts",
+      "Bring up one vulnerable target VM and confirm Kali can ping it",
+      "Create a notes directory tree and a basic markdown pentest report template (exec summary, findings, evidence, remediation)"
+    ],
+    est:3, priority:"High", difficulty:"Easy",
+    exit:"You can explain and execute the basic pentesting workflow in your own lab, with a working notes/report structure.",
+    prompt:"If you skipped a phase (say, jumped from recon straight to exploitation), what would you most likely miss? Write it down.",
+    concepts:["enumeration-methodology"]}));
+
+  D.push(mk({day:2, phase:"Prerequisites", officialDomain:"Prerequisite / Hacking Methodology",
+    title:"Networking Fundamentals for Pentesters",
+    topic:"IP, subnets, ports, protocols and how they show up during a test",
+    subtopics:"IPv4, subnet masks, CIDR, default gateway, TCP vs UDP, ports, common services, DNS, ARP, ICMP, the TCP 3-way handshake",
+    theory:"LEARN: IPv4 addressing, CIDR/subnet masks, TCP vs UDP, the 3-way handshake, and what DNS/ARP/ICMP each do. UNDERSTAND: how these map to what you'll see in scans.",
+    practical:"RUN: inspect your lab's own networking with the commands below. DOCUMENT: record your lab's IP, subnet, gateway and any services you can see.",
+    lab:"Your isolated lab (Kali + target VM).",
+    tools:"ip, ping, arp, ss, netstat, nslookup/dig",
+    commands:[
+      {c:"ip addr", note:"Your interfaces and IPs"},
+      {c:"ip route", note:"Default gateway and routes"},
+      {c:"ping -c 3 <lab-target-ip>", note:"LAB ONLY — ICMP reachability"},
+      {c:"ip neigh  # (arp)", note:"ARP/neighbour table — MACs on the segment"},
+      {c:"ss -tulpn", note:"Listening TCP/UDP services on your host"},
+      {c:"nslookup <name>   /   dig <name>", note:"Resolve names to IPs"}
+    ],
+    tasks:[
+      "Explain IP vs subnet mask vs CIDR in your own words (with one worked example)",
+      "List the difference between TCP and UDP and when each is used",
+      "Diagram the TCP 3-way handshake from memory",
+      "Run ip addr and ip route — identify your lab IP, subnet and gateway",
+      "Use ss -tulpn to list listening services on your Kali host",
+      "Resolve a hostname with nslookup or dig and note the record type",
+      "Document your isolated lab's network configuration and any visible services"
+    ],
+    est:2, priority:"High", difficulty:"Easy",
+    exit:"You can explain what an IP, subnet, gateway, port and service mean during a pentest, and read your lab's network config.",
+    concepts:["tcpip-fundamentals","subnetting","core-protocols"]}));
+
+  D.push(mk({day:3, phase:"Prerequisites", officialDomain:"Prerequisite / Exploitation Basics",
+    title:"Linux Fundamentals for Pentesters",
+    topic:"Navigating and enumerating a Linux target from the shell",
+    subtopics:"Filesystem, permissions, users/groups, processes, services, SSH, environment variables, pipes & redirection",
+    theory:"LEARN: the Linux filesystem layout, permission bits, users/groups, processes and services. UNDERSTAND: which of these matter when you land on a Linux box.",
+    practical:"RUN: enumerate a Linux lab machine with the commands below. BREAK: change a file's permissions and observe the effect. DOCUMENT: note users, services and anything interesting.",
+    lab:"A Linux target VM in your lab (e.g. Metasploitable / a THM Linux box).",
+    tools:"ls, cd, pwd, cat, less, grep, find, chmod, chown, ps, ss, systemctl, id, whoami, uname, env, curl, wget",
+    commands:[
+      {c:"id ; whoami ; uname -a", note:"Who am I / what kernel"},
+      {c:"ls -la /home /etc/passwd", note:"Users and readable config"},
+      {c:"ps aux ; systemctl list-units --type=service", note:"Running processes & services"},
+      {c:"find / -perm -4000 2>/dev/null", note:"LAB ONLY — SUID binaries (privesc surface)"},
+      {c:"grep -R \"password\" /etc 2>/dev/null", note:"LAB ONLY — obvious credential leaks"},
+      {c:"curl -s http://<lab-target-ip>/  ", note:"LAB ONLY — pull a page from a lab web service"}
+    ],
+    tasks:[
+      "Navigate the filesystem and explain what /etc, /home, /var, /tmp hold",
+      "Read /etc/passwd and list the real (login-capable) users",
+      "Use ps aux and systemctl to list running processes and services",
+      "Explain Linux permission bits (rwx, owner/group/other) with one example",
+      "Use find to locate SUID binaries on a lab VM",
+      "Pipe and grep command output to filter for something specific",
+      "Write a short enumeration summary for the Linux lab machine"
+    ],
+    est:2.5, priority:"High", difficulty:"Easy",
+    exit:"You can comfortably navigate and enumerate a Linux target from the shell.",
+    concepts:["linux-cli-basics","linux-users-processes"]}));
+
+  D.push(mk({day:4, phase:"Prerequisites", officialDomain:"Prerequisite / Active Directory Penetration Testing",
+    title:"Windows Fundamentals",
+    topic:"Enumerating a Windows host and its users, services and shares",
+    subtopics:"Windows filesystem, users/groups, services, processes, networking, PowerShell & CMD basics, Windows shares",
+    theory:"LEARN: Windows users/groups, services, processes, networking and shares; the difference between CMD and PowerShell. UNDERSTAND: why Windows/AD is the heart of the PJPT exam.",
+    practical:"RUN: enumerate a Windows lab machine with the commands below. DOCUMENT: users, local admins, services, processes and network connections.",
+    lab:"A Windows target VM in your lab (a Windows 10/Server eval, or a THM/HTB Windows box).",
+    tools:"whoami, ipconfig, net user, net localgroup, tasklist, sc, systeminfo, netstat, dir, Get-Process, Get-Service, Get-NetTCPConnection",
+    commands:[
+      {c:"whoami /priv", note:"Current user + privileges"},
+      {c:"systeminfo", note:"OS build & patch level"},
+      {c:"net user  &  net localgroup administrators", note:"Local users & admins"},
+      {c:"tasklist  ;  sc query", note:"Processes and services"},
+      {c:"ipconfig /all  ;  netstat -ano", note:"Networking & connections"},
+      {c:"Get-Service ; Get-NetTCPConnection", note:"PowerShell equivalents"}
+    ],
+    tasks:[
+      "List local users with net user and identify the administrators group members",
+      "Run systeminfo and record the OS version and patch level",
+      "Enumerate running processes (tasklist) and services (sc query / Get-Service)",
+      "Show network connections with netstat -ano and ipconfig /all",
+      "Run one equivalent task in both CMD and PowerShell and compare",
+      "List available Windows shares and note which you can read",
+      "Write a short enumeration summary for the Windows lab machine"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can identify users, groups, services, processes and network connections on a Windows target.",
+    concepts:["windows-fundamentals"]}));
+
+  D.push(mk({day:5, phase:"Recon & Scanning", officialDomain:"Reconnaissance and Information Gathering",
+    title:"Reconnaissance and Information Gathering",
+    topic:"Passive vs active recon and building a target profile",
+    subtopics:"Passive vs active recon, target identification, domains/subdomains, DNS info, technology identification, usernames, OSINT",
+    theory:"LEARN: the difference between passive and active recon and what each yields. UNDERSTAND: how early recon shapes the whole engagement.",
+    practical:"RUN: perform recon against a deliberately authorised lab target (or an authorised OSINT-practice domain). DOCUMENT: produce a concise reconnaissance document.",
+    lab:"An authorised lab target / your own domain / a sanctioned OSINT practice target ONLY.",
+    tools:"whois, dig, nslookup, host, WhatWeb, theHarvester (where appropriate)",
+    commands:[
+      {c:"whois <authorised-domain>", note:"Registration info (authorised targets only)"},
+      {c:"dig <domain> ANY  ;  host <domain>", note:"DNS records"},
+      {c:"whatweb http://<lab-target-ip>", note:"LAB ONLY — identify web technologies"},
+      {c:"theHarvester -d <authorised-domain> -b bing", note:"Emails/subdomains (authorised only)"}
+    ],
+    tasks:[
+      "Explain passive vs active recon and give one example of each",
+      "Gather DNS information for an authorised target (records, subdomains)",
+      "Identify the technology stack of a lab web service with WhatWeb",
+      "Collect any usernames / email patterns from authorised sources only",
+      "Note the boundary between authorised and out-of-scope information",
+      "Produce a concise target reconnaissance document"
+    ],
+    est:2, priority:"High", difficulty:"Medium",
+    exit:"You can produce a concise, well-organised target reconnaissance document from authorised sources.",
+    concepts:["enumeration-methodology"]}));
+
+  D.push(mk({day:6, phase:"Recon & Scanning", officialDomain:"Scanning and Enumeration",
+    title:"Nmap Host Discovery",
+    topic:"Finding live hosts on the network",
+    subtopics:"Host discovery, ICMP discovery, TCP discovery, subnet scanning, reading scan output",
+    theory:"LEARN: how Nmap decides a host is up (ICMP, TCP SYN/ACK probes) and when each discovery method is needed. UNDERSTAND: why a ping sweep can miss firewalled hosts.",
+    practical:"RUN: discover every live host in your isolated lab subnet using several discovery methods. DOCUMENT: a live-host inventory.",
+    lab:"Your isolated lab subnet ONLY.",
+    tools:"nmap",
+    commands:[
+      {c:"nmap -sn <lab-subnet>/24", note:"LAB ONLY — ping sweep, no port scan"},
+      {c:"nmap -PE <lab-subnet>/24", note:"LAB ONLY — ICMP echo discovery"},
+      {c:"nmap -PS22,80,443 <lab-subnet>/24", note:"LAB ONLY — TCP SYN discovery"},
+      {c:"nmap -PA80 <lab-subnet>/24", note:"LAB ONLY — TCP ACK discovery"}
+    ],
+    tasks:[
+      "Run a -sn ping sweep across your lab subnet",
+      "Repeat discovery with -PE, -PS and -PA and compare which hosts appear",
+      "Explain why a host might respond to one probe type but not another",
+      "Read and interpret the scan output for each method",
+      "Document a definitive list of live hosts in the lab"
+    ],
+    est:2, priority:"High", difficulty:"Medium",
+    exit:"You can identify and document all live hosts in the lab subnet and explain the discovery method used.",
+    concepts:["nmap-fundamentals","host-discovery"]}));
+
+  D.push(mk({day:7, phase:"Recon & Scanning", officialDomain:"Scanning and Enumeration",
+    title:"Nmap Port and Service Enumeration",
+    topic:"Ports, versions and OS detection on a target",
+    subtopics:"TCP port scanning, UDP scanning, service/version detection, OS detection, default scripts",
+    theory:"LEARN: the difference between -sS/-sT/-sU, and what -sV/-O/-sC add. UNDERSTAND: how to turn raw ports into an attack surface.",
+    practical:"RUN: fully enumerate a lab target's ports and services. DOCUMENT: an IP → port → protocol → service → version → attack-surface inventory.",
+    lab:"A single lab target VM ONLY.",
+    tools:"nmap",
+    commands:[
+      {c:"nmap -sS -p- -T4 <lab-target-ip>", note:"LAB ONLY — full TCP SYN sweep"},
+      {c:"nmap -sT -p- <lab-target-ip>", note:"LAB ONLY — TCP connect scan (no raw sockets)"},
+      {c:"nmap -sU --top-ports 50 <lab-target-ip>", note:"LAB ONLY — top UDP ports"},
+      {c:"nmap -sV -O <lab-target-ip>", note:"LAB ONLY — version + OS detection"},
+      {c:"nmap -sC -A -oN scans/full.txt <lab-target-ip>", note:"LAB ONLY — default scripts + save output"}
+    ],
+    tasks:[
+      "Run a full TCP port scan (-p-) against a lab target",
+      "Scan the top UDP ports and note anything open",
+      "Add -sV and -O for service versions and OS guess",
+      "Run -sC default scripts and read the extra findings",
+      "Save all output to files in your engagement folder",
+      "Build a service inventory: IP → port → protocol → service → version → possible attack surface"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce a complete service inventory for a target and reason about each service's attack surface.",
+    concepts:["nmap-fundamentals","port-service-enum"]}));
+
+  D.push(mk({day:8, phase:"Recon & Scanning", officialDomain:"Scanning and Enumeration",
+    title:"Service Enumeration",
+    topic:"Digging into individual exposed services",
+    subtopics:"FTP, SSH, SMB, HTTP, DNS and their common misconfigurations",
+    theory:"LEARN: what to check on each common service (anonymous access, versions, shares, banners). UNDERSTAND: enumeration is where most footholds are actually found.",
+    practical:"RUN: enumerate multiple exposed services on lab hosts. DOCUMENT: for every service, at least one meaningful next action.",
+    lab:"Lab hosts exposing several services ONLY.",
+    tools:"smbclient, enum4linux-ng, rpcclient, ftp, curl, nc, dig",
+    commands:[
+      {c:"smbclient -L //<lab-target-ip>/ -N", note:"LAB ONLY — list SMB shares anonymously"},
+      {c:"enum4linux-ng -A <lab-target-ip>", note:"LAB ONLY — full SMB/NetBIOS enumeration"},
+      {c:"rpcclient -U \"\" -N <lab-target-ip>", note:"LAB ONLY — null-session RPC enumeration"},
+      {c:"ftp <lab-target-ip>   # try anonymous", note:"LAB ONLY — anonymous FTP check"},
+      {c:"nc -nv <lab-target-ip> 22", note:"LAB ONLY — banner-grab SSH"},
+      {c:"dig axfr @<lab-target-ip> <domain>", note:"LAB ONLY — attempt zone transfer"}
+    ],
+    tasks:[
+      "Enumerate SMB shares and attempt to list/read them",
+      "Run enum4linux-ng and extract users, shares and OS info",
+      "Attempt an anonymous FTP login and note what's exposed",
+      "Banner-grab at least two services with nc",
+      "Attempt a DNS zone transfer against a lab DNS service",
+      "For every exposed service, write down at least one meaningful next enumeration/action"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"For every exposed service in the lab you can name at least one concrete next enumeration or attack step.",
+    concepts:["service-enumeration","smb-enumeration","protocols-hands-on"]}));
+
+  D.push(mk({day:9, phase:"Recon & Scanning", officialDomain:"Scanning and Enumeration / Exploitation Basics",
+    title:"Vulnerability Identification",
+    topic:"Turning service versions into candidate vulnerabilities",
+    subtopics:"Service versions, CVE identification, Exploit-DB, searchsploit, Nmap NSE, vulnerability vs exploitability",
+    theory:"LEARN: how to map a version to known CVEs and where searchsploit/Exploit-DB fit. UNDERSTAND: a vulnerability is not the same as a working, in-scope exploit.",
+    practical:"RUN: take your enumerated services and map them to possible vulnerabilities. DOCUMENT: an attack-surface table with evidence.",
+    lab:"Your enumerated lab targets ONLY.",
+    tools:"searchsploit, nmap NSE, authorised research (Exploit-DB) only",
+    commands:[
+      {c:"searchsploit <service> <version>", note:"Find public exploits for a version"},
+      {c:"searchsploit -m <edb-id>", note:"Copy an exploit locally to review it"},
+      {c:"nmap --script vuln <lab-target-ip>", note:"LAB ONLY — NSE vulnerability scripts"}
+    ],
+    tasks:[
+      "Take each service+version from Day 7-8 and search for known CVEs",
+      "Use searchsploit to find candidate public exploits",
+      "Run Nmap NSE vuln scripts against a lab target",
+      "For each candidate, judge vulnerability vs exploitability (is it really reachable?)",
+      "Flag likely false positives",
+      "Create an attack-surface table: service / version / vulnerability / evidence / next step"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce an evidence-backed attack-surface table distinguishing real vulnerabilities from noise.",
+    concepts:["vulnerability-assessment"]}));
+
+  D.push(mk({day:10, phase:"Exploitation Basics", officialDomain:"Exploitation Basics",
+    title:"Exploitation Fundamentals",
+    topic:"Getting your first shell on a target",
+    subtopics:"Exploit selection, payload concepts, reverse vs bind shells, Metasploit basics, manual exploitation, listener setup",
+    theory:"LEARN: reverse vs bind shells, what a payload is, and when to use Metasploit vs a manual exploit. UNDERSTAND: how a listener + payload combine into a foothold.",
+    practical:"RUN: exploit a deliberately vulnerable lab machine and obtain an initial shell. DOCUMENT: the full foothold path.",
+    lab:"A deliberately vulnerable lab VM ONLY (e.g. Metasploitable / an easy THM/HTB box you own access to).",
+    tools:"msfconsole, nc, rlwrap",
+    commands:[
+      {c:"nc -lvnp 4444", note:"LAB ONLY — set up a reverse-shell listener"},
+      {c:"rlwrap nc -lvnp 4444", note:"LAB ONLY — nicer shell (arrow keys/history)"},
+      {c:"msfconsole -q", note:"Start Metasploit"},
+      {c:"search <service> ; use <module> ; show options", note:"Select & configure a module"},
+      {c:"set RHOSTS <lab-target-ip> ; set LHOST <kali-ip> ; run", note:"LAB ONLY — launch against your lab target"}
+    ],
+    tasks:[
+      "Explain the difference between a reverse shell and a bind shell",
+      "Set up a Netcat listener and catch a test connection",
+      "Select an appropriate exploit for a known lab vulnerability",
+      "Launch the exploit (Metasploit or manual) against your lab target",
+      "Obtain an initial shell and confirm which user you are",
+      "Document the complete foothold path: vuln → exploit → payload → shell"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You have obtained and documented an initial foothold on a lab machine, and can explain every step.",
+    concepts:["metasploit-basics","netcat-basics"]}));
+
+  D.push(mk({day:11, phase:"Web App Testing", officialDomain:"Web Application Penetration Testing",
+    title:"Web Application Enumeration",
+    topic:"Mapping a web app's attack surface",
+    subtopics:"HTTP requests/responses, headers, cookies, technologies, directories, files, virtual hosts, parameters",
+    theory:"LEARN: how HTTP requests/responses, headers and cookies work, and how content discovery finds hidden surface. UNDERSTAND: you can't attack what you haven't mapped.",
+    practical:"RUN: enumerate a deliberately vulnerable web application. DOCUMENT: a web attack-surface map.",
+    lab:"A deliberately vulnerable web app you host locally (DVWA / Juice Shop) or a lab web target ONLY.",
+    tools:"Burp Suite, ffuf, gobuster, curl, WhatWeb",
+    commands:[
+      {c:"whatweb http://<lab-target-ip>", note:"LAB ONLY — tech fingerprint"},
+      {c:"curl -I http://<lab-target-ip>", note:"LAB ONLY — inspect response headers"},
+      {c:"gobuster dir -u http://<lab-target-ip> -w /usr/share/wordlists/dirb/common.txt", note:"LAB ONLY — directory discovery"},
+      {c:"ffuf -u http://<lab-target-ip>/FUZZ -w /usr/share/wordlists/dirb/common.txt", note:"LAB ONLY — file/dir fuzzing"},
+      {c:"ffuf -u http://<lab-target-ip>/ -H 'Host: FUZZ.<domain>' -w subdomains.txt", note:"LAB ONLY — vhost discovery"}
+    ],
+    tasks:[
+      "Fingerprint the web technologies with WhatWeb",
+      "Inspect response headers and cookies with curl and Burp",
+      "Discover directories and files with gobuster/ffuf",
+      "Enumerate parameters on at least one dynamic page",
+      "Check for virtual hosts if a domain is in scope",
+      "Produce a web attack-surface map (endpoints, params, tech, auth points)"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce a clear web attack-surface map for a target application.",
+    concepts:["web-enum-tools"]}));
+
+  D.push(mk({day:12, phase:"Web App Testing", officialDomain:"Web Application Penetration Testing",
+    title:"Burp Suite Fundamentals",
+    topic:"Manually manipulating HTTP with Burp",
+    subtopics:"Proxy, Repeater, Intruder concepts, request modification, cookies, parameters, authentication flows",
+    theory:"LEARN: Burp's Proxy, Repeater and Intruder and how requests flow through them. UNDERSTAND: why manual request control beats blind automation.",
+    practical:"RUN: intercept and modify requests against a local vulnerable application. BREAK: tamper with a parameter and observe the response.",
+    lab:"A local vulnerable app (DVWA / Juice Shop) ONLY.",
+    tools:"Burp Suite (Community is fine)",
+    commands:[
+      {c:"# Set browser proxy → 127.0.0.1:8080", note:"Route traffic through Burp"},
+      {c:"# Proxy > Intercept: capture a login request", note:"LAB ONLY — inspect the raw request"},
+      {c:"# Ctrl+R: send to Repeater, then edit & resend", note:"LAB ONLY — manual request tampering"},
+      {c:"# Modify a cookie/parameter and resend", note:"LAB ONLY — observe how the app reacts"}
+    ],
+    tasks:[
+      "Configure your browser + Burp so traffic is intercepted",
+      "Intercept a login/form request and read every part of it",
+      "Send a request to Repeater and modify a parameter",
+      "Tamper with a cookie and observe the effect on the response",
+      "Walk through one authentication flow entirely in Burp",
+      "Note how each change altered the server's behaviour"
+    ],
+    est:2, priority:"High", difficulty:"Medium",
+    exit:"You can manually manipulate HTTP requests in Burp without relying on automation.",
+    concepts:["burp-suite"]}));
+
+  D.push(mk({day:13, phase:"Web App Testing", officialDomain:"Web Application Penetration Testing",
+    title:"Basic Web Exploitation",
+    topic:"Exploiting common beginner web vulnerabilities",
+    subtopics:"Authentication weaknesses, IDOR/access control, basic SQL injection, XSS, command injection concepts, file upload weaknesses",
+    theory:"LEARN: how SQLi, XSS, IDOR, command injection and unsafe file upload actually work. UNDERSTAND: the request → vulnerability → exploitation → impact → remediation chain.",
+    practical:"RUN: exploit several beginner web vulnerabilities in intentionally vulnerable labs only. DOCUMENT: each as a mini finding.",
+    lab:"DVWA and/or OWASP Juice Shop ONLY (intentionally vulnerable).",
+    tools:"Burp Suite, browser, curl (against DVWA/Juice Shop only)",
+    commands:[
+      {c:"' OR '1'='1  -- -", note:"LAB ONLY — classic SQLi auth-bypass test in DVWA"},
+      {c:"<script>alert(document.domain)<\/script>", note:"LAB ONLY — reflected/stored XSS probe"},
+      {c:"127.0.0.1; id", note:"LAB ONLY — command-injection test payload"},
+      {c:"# Change ?id=1 to ?id=2", note:"LAB ONLY — IDOR / broken access control test"}
+    ],
+    tasks:[
+      "Exploit a basic SQL injection in DVWA/Juice Shop and extract data",
+      "Trigger a reflected and a stored XSS in a vulnerable app",
+      "Demonstrate an IDOR / broken access control issue",
+      "Test a command-injection point (lab only) and get command output",
+      "Abuse an insecure file upload to run code (lab only)",
+      "For one finding, write: request → vulnerability → exploitation → impact → remediation"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You can explain and demonstrate request → vulnerability → exploitation → impact → remediation for several web bugs.",
+    concepts:["web-app-attacks","authentication-attacks"]}));
+
+  D.push(mk({day:14, phase:"Privilege Escalation", officialDomain:"Supporting skill — Exploitation Basics (Privilege Escalation)",
+    title:"Linux Privilege Escalation",
+    topic:"Going from low-priv user to root on Linux",
+    subtopics:"sudo, SUID, capabilities, cron, writable files, services, PATH issues, stored credentials",
+    theory:"LEARN: the common Linux privesc vectors and how enumeration scripts surface them. UNDERSTAND: privesc is methodical enumeration, not luck.",
+    practical:"RUN: start as a low-privileged user in a lab and escalate to root. DOCUMENT: the complete escalation path.",
+    lab:"A lab VM where you already have a low-priv shell ONLY.",
+    tools:"linpeas, ps, sudo -l, find, getcap",
+    commands:[
+      {c:"sudo -l", note:"LAB ONLY — what can I run as root?"},
+      {c:"find / -perm -4000 2>/dev/null", note:"LAB ONLY — SUID binaries"},
+      {c:"getcap -r / 2>/dev/null", note:"LAB ONLY — file capabilities"},
+      {c:"cat /etc/crontab ; ls -la /etc/cron*", note:"LAB ONLY — scheduled jobs"},
+      {c:"./linpeas.sh | tee loot/linpeas.txt", note:"LAB ONLY — automated privesc enumeration"}
+    ],
+    tasks:[
+      "Run sudo -l and identify any exploitable sudo rights",
+      "Enumerate SUID binaries and check GTFOBins for abuse",
+      "Check capabilities with getcap",
+      "Inspect cron jobs and writable scripts/services",
+      "Run linpeas and triage the highest-signal findings",
+      "Escalate to root and document the complete privesc path"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You have escalated to root in a lab and documented the full privilege-escalation path.",
+    concepts:["linux-privesc","linux-services-cron"]}));
+
+  D.push(mk({day:15, phase:"Privilege Escalation", officialDomain:"Supporting skill — Active Directory Penetration Testing (Privilege Escalation)",
+    title:"Windows Privilege Escalation Fundamentals",
+    topic:"Going from low-priv user to SYSTEM/admin on Windows",
+    subtopics:"Windows privileges, services, weak service permissions, scheduled tasks, unquoted service paths, stored credentials, registry, tokens",
+    theory:"LEARN: the main Windows privesc vectors (service perms, unquoted paths, tokens, stored creds). UNDERSTAND: how winPEAS maps to each vector.",
+    practical:"RUN: escalate privileges on a deliberately vulnerable Windows machine. DOCUMENT: at least one working escalation path.",
+    lab:"A deliberately vulnerable Windows lab VM ONLY.",
+    tools:"winPEAS, PowerShell, whoami /priv",
+    commands:[
+      {c:"whoami /priv", note:"LAB ONLY — exploitable privileges (SeImpersonate, etc.)"},
+      {c:"whoami /groups", note:"LAB ONLY — group memberships"},
+      {c:"winPEASx64.exe > loot\\winpeas.txt", note:"LAB ONLY — automated privesc enumeration"},
+      {c:"sc qc <service>", note:"LAB ONLY — inspect service config / binpath"},
+      {c:"wmic service get name,pathname,startmode", note:"LAB ONLY — hunt unquoted service paths"}
+    ],
+    tasks:[
+      "Enumerate privileges with whoami /priv and /groups",
+      "Run winPEAS and triage the top findings",
+      "Check services for weak permissions and unquoted paths",
+      "Look for scheduled tasks and stored credentials",
+      "Exploit at least one vector to gain admin/SYSTEM",
+      "Document the escalation path you used and why it worked"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You have identified and exploited at least one Windows privilege-escalation path in a lab.",
+    concepts:["windows-privesc"]}));
+
+  D.push(mk({day:16, phase:"Active Directory", officialDomain:"Active Directory Penetration Testing",
+    title:"Active Directory Architecture",
+    topic:"How an AD environment is actually built",
+    subtopics:"Domain, domain controller, users, groups, computers, OUs, LDAP, Kerberos, NTLM, SMB, DNS in AD",
+    theory:"LEARN: the components of AD (domain, DC, users/groups/computers, OUs) and the protocols that glue them together (LDAP, Kerberos, NTLM, SMB, DNS). UNDERSTAND: the DC is the PJPT exam's ultimate objective.",
+    practical:"RUN: build or access an isolated AD lab. DOCUMENT: a diagram of the environment.",
+    lab:"An isolated AD lab ONLY (e.g. TCM's AD lab build, GOAD, or your own DC + workstation VMs).",
+    tools:"VirtualBox/VMware, Windows Server (DC), a domain-joined workstation",
+    commands:[
+      {c:"# Promote a Windows Server to a Domain Controller (dcpromo / Server Manager)", note:"LAB ONLY — build the domain"},
+      {c:"# Join a Windows 10 VM to the domain", note:"LAB ONLY — create a client"},
+      {c:"nslookup -type=SRV _ldap._tcp.dc._msdcs.<domain>", note:"LAB ONLY — find the DC via DNS SRV records"}
+    ],
+    tasks:[
+      "Explain what a domain, domain controller and OU are",
+      "Describe the roles of LDAP, Kerberos, NTLM, SMB and DNS in AD",
+      "Build or access an isolated AD lab (DC + at least one client)",
+      "Confirm the client is domain-joined and can authenticate",
+      "Draw/explain the flow: Client → Domain → DC → DNS → LDAP → Kerberos → SMB"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can draw and explain Client → Domain → DC → DNS → LDAP → Kerberos → SMB for a working lab domain.",
+    concepts:["active-directory-basics"]}));
+
+  D.push(mk({day:17, phase:"Active Directory", officialDomain:"Active Directory Penetration Testing",
+    title:"Active Directory Enumeration",
+    topic:"Mapping users, groups, computers and shares in a domain",
+    subtopics:"Domain discovery, user/group/computer enumeration, SMB shares, LDAP enumeration, domain information",
+    theory:"LEARN: how to enumerate a domain's users, groups, computers and shares with and without credentials. UNDERSTAND: enumeration builds the map you'll attack.",
+    practical:"RUN: enumerate an intentionally vulnerable AD environment. DOCUMENT: domain, DC, users, groups, computers, shares and potential attack paths.",
+    lab:"Your isolated/intentionally vulnerable AD lab ONLY.",
+    tools:"net, crackmapexec / netexec, smbclient, ldapsearch, enum4linux-ng, rpcclient",
+    commands:[
+      {c:"net user /domain ; net group /domain", note:"LAB ONLY — domain users & groups"},
+      {c:"nxc smb <dc-ip> -u <user> -p <pass> --users --groups", note:"LAB ONLY — NetExec domain enumeration"},
+      {c:"ldapsearch -x -H ldap://<dc-ip> -b \"dc=<d>,dc=<c>\"", note:"LAB ONLY — LDAP dump"},
+      {c:"enum4linux-ng -A <dc-ip>", note:"LAB ONLY — broad SMB/LDAP enumeration"},
+      {c:"smbclient -L //<dc-ip>/ -U <user>", note:"LAB ONLY — domain shares"}
+    ],
+    tasks:[
+      "Identify the domain name and domain controller",
+      "Enumerate domain users and groups (net / NetExec / LDAP)",
+      "Enumerate domain computers",
+      "List and inspect SMB shares",
+      "Run LDAP enumeration and pull useful attributes",
+      "Produce: domain, DC, users, groups, computers, shares, potential attack paths"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can produce a full AD enumeration record (domain, DC, users, groups, computers, shares, candidate paths).",
+    concepts:["ad-enumeration","smb-enumeration"]}));
+
+  D.push(mk({day:18, phase:"Active Directory", officialDomain:"Active Directory Penetration Testing",
+    title:"AD Credential Attacks",
+    topic:"Obtaining and abusing domain credentials",
+    subtopics:"Password spraying, credential reuse, LLMNR/NBT-NS poisoning concepts, SMB relay concepts, AS-REP roasting, Kerberoasting concepts",
+    theory:"LEARN: how LLMNR/NBT-NS poisoning, SMB relay, password spraying, AS-REP roasting and Kerberoasting each yield credential material. UNDERSTAND: the prerequisite for each attack.",
+    practical:"RUN: perform at least one controlled AD credential attack in your isolated lab. DOCUMENT: prerequisite → tool → captured material → next step.",
+    lab:"Your isolated / authorised AD lab ONLY. IMPORTANT: never run these against systems you do not own or are not authorised to test.",
+    tools:"Responder, NetExec, Impacket (GetNPUsers, GetUserSPNs)",
+    commands:[
+      {c:"sudo responder -I <lab-iface>", note:"LAB ONLY — capture LLMNR/NBT-NS hashes"},
+      {c:"nxc smb <lab-subnet>/24 -u users.txt -p 'Season2025!' ", note:"LAB ONLY — password spray"},
+      {c:"GetNPUsers.py <domain>/ -usersfile users.txt -no-pass -dc-ip <dc-ip>", note:"LAB ONLY — AS-REP roasting"},
+      {c:"GetUserSPNs.py <domain>/<user>:<pass> -dc-ip <dc-ip> -request", note:"LAB ONLY — Kerberoasting"},
+      {c:"hashcat -m 18200 asrep.hash rockyou.txt", note:"LAB ONLY — crack AS-REP hash"}
+    ],
+    tasks:[
+      "Explain the prerequisite for LLMNR/NBT-NS poisoning and SMB relay",
+      "Run Responder in the lab and capture at least one hash",
+      "Perform a controlled password spray with NetExec",
+      "Attempt AS-REP roasting (GetNPUsers) and Kerberoasting (GetUserSPNs)",
+      "Crack one captured hash offline",
+      "Document: attack prerequisite → command/tool → captured credential material → next step"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can explain and demonstrate at least one AD credential attack end-to-end in your lab, with the prerequisite understood.",
+    prompt:"For each attack, write down the single condition that makes it possible — and how a defender would remove it.",
+    concepts:["ad-credential-attacks","password-attacks"]}));
+
+  D.push(mk({day:19, phase:"Active Directory", officialDomain:"Active Directory Penetration Testing",
+    title:"BloodHound + AD Attack Paths",
+    topic:"Finding the path from low-priv to Domain Admin",
+    subtopics:"BloodHound, domain relationships, user/group relationships, sessions, ACLs, attack paths, lateral movement",
+    theory:"LEARN: how BloodHound ingests collected data and surfaces attack paths (ACLs, sessions, group nesting). UNDERSTAND: how a chain of small rights leads to Domain Admin.",
+    practical:"RUN: collect AD data with SharpHound and analyse it in BloodHound. DOCUMENT: one realistic path toward higher privilege.",
+    lab:"Your isolated AD lab ONLY.",
+    tools:"BloodHound, SharpHound",
+    commands:[
+      {c:"SharpHound.exe -c All", note:"LAB ONLY — collect AD data from a domain-joined host"},
+      {c:"bloodhound-python -u <user> -p <pass> -d <domain> -ns <dc-ip> -c All", note:"LAB ONLY — remote collection from Kali"},
+      {c:"# Import the .zip into the BloodHound GUI", note:"Load collected data"},
+      {c:"# Run 'Shortest Paths to Domain Admins'", note:"LAB ONLY — surface an attack path"}
+    ],
+    tasks:[
+      "Collect AD data with SharpHound / bloodhound-python",
+      "Import the data into BloodHound",
+      "Explore user/group relationships, sessions and ACLs",
+      "Run the 'Shortest Path to Domain Admins' query",
+      "Pick one realistic path and explain each hop",
+      "Explain one complete path from low-priv access toward Domain Admin"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can explain one complete attack path from initial low-privilege access toward Domain Admin using BloodHound.",
+    concepts:["bloodhound","ad-enumeration"]}));
+
+  D.push(mk({day:20, phase:"Final Assessment", officialDomain:"Integrated PJPT Assessment",
+    title:"Mini Internal Penetration Test",
+    topic:"Full internal engagement — recon to Domain Controller compromise + report",
+    subtopics:"Scope, host discovery, enumeration, initial access, credential discovery, privesc, AD enumeration, lateral movement, domain compromise, evidence, reporting",
+    theory:"This is an assessment day. No walkthrough and no solution is provided — the point is to combine everything from Days 1-19 under realistic conditions, the way the real PJPT (2 days practical + 2 days reporting) works.",
+    practical:"SCENARIO: you have an authorised internal network with multiple hosts, Windows machines, Active Directory, web service(s), user accounts and exposed services. Work the full engagement and produce a professional report. Figure out the path yourself.",
+    lab:"An authorised internal-network lab you have NOT solved before (e.g. TCM's AD lab, GOAD, or an unseen multi-host lab). AUTHORISED ENVIRONMENTS ONLY.",
+    tools:"Everything from Days 1-19 (Nmap, NetExec, Impacket, Responder, BloodHound, Burp, linpeas/winPEAS, your report template)",
+    commands:[
+      {c:"# No commands are given for this day — you choose them.", note:"Assessment: recall the right tool for each phase yourself"}
+    ],
+    tasks:[
+      "1. Scope identification — confirm what is in and out of scope",
+      "2. Host discovery — find every live host",
+      "3. Port/service enumeration — full inventory",
+      "4. Vulnerability identification — attack-surface table",
+      "5. Initial access — obtain a foothold",
+      "6. Credential discovery — harvest usernames/passwords/hashes",
+      "7. Privilege escalation — local admin/root where possible",
+      "8. AD enumeration — map the domain",
+      "9. Lateral movement — pivot between hosts",
+      "10. Domain compromise — take the Domain Controller",
+      "11. Evidence collection — screenshots, command output, loot",
+      "12. Professional report — exec summary, findings, evidence, remediation"
+    ],
+    est:8, priority:"High", difficulty:"Hard",
+    exit:"You complete the engagement end-to-end (up to Domain Controller compromise) and produce a professional mini penetration-test report — with no solution provided to you.",
+    prompt:"Treat this like the real exam: no hints. If you get stuck, note exactly where and why, finish the rest, then review — don't look up the answer mid-assessment.",
+    concepts:["enumeration-methodology","ad-enumeration","report-writing"]}));
+
+  return D;
+}
+
+/* =========================================================
    STORAGE — PIN-synced (Cloudflare KV) + local cache fallback
    ========================================================= */
 let state = null;
@@ -837,11 +1482,25 @@ async function loadState(){
   if(!loadedFromCloud) queueSave();
 }
 
-function installDaysAccessor(obj){
+function daysKeyFor(track){ return track==='ejpt' ? 'ejptDays' : track==='pjpt' ? 'pjptDays' : 'oscpDays'; }
+
+// Fields that live in the per-track progress bucket. Accessors below make
+// state.skills / state.labs / etc. transparently read+write the active track's
+// bucket, so no other code has to know about the multi-track split.
+const TRACK_SCOPED_FIELDS = ['skills','labs','commands','weaknesses','weeklyReviews','mocks'];
+
+function installAccessors(obj){
   Object.defineProperty(obj, 'days', {
     configurable:true, enumerable:false,
-    get(){ return this.meta.track==='ejpt' ? this.ejptDays : this.oscpDays; },
-    set(v){ if(this.meta.track==='ejpt') this.ejptDays = v; else this.oscpDays = v; }
+    get(){ return this[daysKeyFor(this.meta.track)]; },
+    set(v){ this[daysKeyFor(this.meta.track)] = v; }
+  });
+  TRACK_SCOPED_FIELDS.forEach(field=>{
+    Object.defineProperty(obj, field, {
+      configurable:true, enumerable:false,
+      get(){ return this.progress[this.meta.track][field]; },
+      set(v){ this.progress[this.meta.track][field] = v; }
+    });
   });
 }
 
@@ -855,13 +1514,44 @@ function migrateState(){
     state.oscpDays = Array.isArray(state.days) ? state.days : buildPhase1Days();
   }
   if(!state.ejptDays) state.ejptDays = buildEjptDays();
+  if(!state.pjptDays) state.pjptDays = buildPjptDays();
   delete state.days;
-  installDaysAccessor(state);
-  [...state.oscpDays, ...state.ejptDays].forEach(d=>{
+
+  // Migrate older saves that stored skills/labs/etc. as flat, shared fields
+  // into the per-track progress structure. Existing data becomes the OSCP
+  // track's bucket (OSCP was the original/primary track); other tracks start
+  // fresh so nothing is cross-contaminated.
+  if(!state.progress || typeof state.progress !== 'object'){
+    state.progress = {
+      oscp:{
+        skills: Array.isArray(state.skills) ? state.skills : defaultSkills(),
+        labs: Array.isArray(state.labs) ? state.labs : [],
+        commands: Array.isArray(state.commands) ? state.commands : defaultCommands(),
+        weaknesses: Array.isArray(state.weaknesses) ? state.weaknesses : [],
+        weeklyReviews: Array.isArray(state.weeklyReviews) ? state.weeklyReviews : [],
+        mocks: Array.isArray(state.mocks) ? state.mocks : defaultMocks('oscp')
+      },
+      ejpt: defaultTrackProgress('ejpt'),
+      pjpt: defaultTrackProgress('pjpt')
+    };
+  }
+  // Ensure every track bucket exists and is fully populated (covers saves made
+  // between feature versions).
+  ['oscp','ejpt','pjpt'].forEach(tk=>{
+    if(!state.progress[tk]) state.progress[tk] = defaultTrackProgress(tk);
+    const def = defaultTrackProgress(tk);
+    TRACK_SCOPED_FIELDS.forEach(f=>{ if(!Array.isArray(state.progress[tk][f])) state.progress[tk][f] = def[f]; });
+  });
+  ['skills','labs','commands','weaknesses','weeklyReviews','mocks'].forEach(f=>{ delete state[f]; });
+
+  installAccessors(state);
+  [...state.oscpDays, ...state.ejptDays, ...state.pjptDays].forEach(d=>{
     if(d.completedDate===undefined) d.completedDate = "";
     if(d.timerStart===undefined) d.timerStart = "";
     if(d.concepts===undefined) d.concepts = [];
-    if(d.track===undefined) d.track = state.oscpDays.includes(d) ? "oscp" : "ejpt";
+    if(d.track===undefined){
+      d.track = state.oscpDays.includes(d) ? "oscp" : state.ejptDays.includes(d) ? "ejpt" : "pjpt";
+    }
   });
 }
 
@@ -1008,13 +1698,14 @@ function renderTopbar(m){
       <div class="dot"></div>
       <div class="brand-text">${trackLabel(track).toUpperCase()}::PREP <span class="dim">// operator log — Yash</span></div>
     </div>
-    <div class="track-switch" id="trackSwitch">
-      <button class="track-opt ${track==='oscp'?'active':''}" data-track="oscp">OSCP</button>
-      <button class="track-opt ${track==='ejpt'?'active':''}" data-track="ejpt">eJPT</button>
+    <div class="track-switch" id="trackSwitch" title="${trackFull(track)}">
+      <button class="track-opt ${track==='oscp'?'active':''}" data-track="oscp" title="Offensive Security Certified Professional">OSCP</button>
+      <button class="track-opt ${track==='ejpt'?'active':''}" data-track="ejpt" title="eLearnJunior Penetration Tester">eJPT</button>
+      <button class="track-opt ${track==='pjpt'?'active':''}" data-track="pjpt" title="Practical Junior Penetration Tester">PJPT</button>
     </div>
     <div class="headstats">
       <div class="hstat"><span>Readiness</span><b class="amber">${m.readiness}<span style="font-size:11px;color:var(--text-faint)">/100</span></b></div>
-      <div class="hstat"><span>Day</span><b>${m.currentDayNum} <span style="font-size:11px;color:var(--text-faint)">/ ${m.totalDays}+</span></b></div>
+      <div class="hstat"><span>Day</span><b>${m.currentDayNum} <span style="font-size:11px;color:var(--text-faint)">/ ${m.totalDays}${(TRACK_META[track]||TRACK_META.oscp).total}</span></b></div>
       <div class="hstat"><span>Overall %</span><b class="green">${m.overallPct}%</b></div>
       <div class="hstat"><span>Streak</span><b class="${m.streak>0?'amber':''}">${m.streak}d</b></div>
       <div class="hstat"><span>Exam Target</span><b style="font-size:13px;">${examStr}</b></div>
@@ -1096,13 +1787,13 @@ function renderDashboard(m){
   ${todayDay ? `
   <div class="focus-card">
     <div>
-      <div class="focus-eyebrow">Today's Focus — Day ${todayDay.day}</div>
+      <div class="focus-eyebrow">Today's Focus — Day ${todayDay.day}${todayDay.officialDomain?` · ${todayDay.officialDomain}`:''}</div>
       <div class="focus-title">${todayDay.objective}</div>
       <div class="focus-sub">${todayDay.topic} · ${todayDay.tasks.filter(t=>t.done).length}/${todayDay.tasks.length} tasks done</div>
     </div>
     <button class="btn primary" id="jumpTodayBtn">Open Day ${todayDay.day} →</button>
   </div>` : `
-  <div class="focus-card"><div><div class="focus-eyebrow">${trackLabel(state.meta.track)} Track Complete</div><div class="focus-title">${state.meta.track==='ejpt' ? "All eJPT days are logged. Switch to OSCP or keep drilling weak points." : "Tell me in chat when you're ready — I'll generate Phase 2 (Enumeration)."}</div></div></div>`}
+  <div class="focus-card"><div><div class="focus-eyebrow">${trackLabel(state.meta.track)} Track Complete</div><div class="focus-title">${state.meta.track==='ejpt' ? "All eJPT days are logged. Switch to OSCP or PJPT, or keep drilling weak points." : state.meta.track==='pjpt' ? "All 20 PJPT days are logged. Tell me in chat when you're ready and I'll extend the curriculum." : "Tell me in chat when you're ready — I'll generate Phase 2 (Enumeration)."}</div></div></div>`}
 
   <div class="banner"><b>Reality check:</b> readiness is computed from skill confidence, independent lab completion (hints used), and mock exam performance — not just checklist completion. Ticking boxes without demonstrating a skill practically will NOT move this number much.</div>
 
@@ -1126,6 +1817,7 @@ function renderDashboard(m){
       <div class="card-label">Phase / Day</div>
       <div class="card-value">${m.currentPhase}</div>
       <div class="card-sub">Day ${m.currentDayNum} · ${m.completedDays}/${m.totalDays} days completed in current logged range</div>
+      ${(todayDay && todayDay.officialDomain)?`<div class="card-sub" style="margin-top:4px;">Current domain: <span style="color:var(--cyan);">${todayDay.officialDomain}</span></div>`:''}
     </div>
 
     <div class="card">
@@ -1201,9 +1893,13 @@ let openDayId = null;
 
 function renderDaily(m){
   const track = state.meta.track;
-  const phaseLabel = track==='ejpt' ? 'eJPT exam-domain plan' : 'Phase 1: Foundations';
+  const phaseLabel = track==='ejpt' ? 'eJPT exam-domain plan'
+    : track==='pjpt' ? 'PJPT — first 20 days'
+    : 'Phase 1: Foundations';
   const subNote = track==='ejpt'
     ? "17 days aligned to the eJPT exam domains. Days marked with a concept badge overlap topics already covered on the OSCP track."
+    : track==='pjpt'
+    ? "Days 1-20 of the Practical Junior Penetration Tester track, built from the official TCM PEH/PJPT areas. Prerequisite and supporting-skill days are labelled distinctly from official areas. All commands are for your own isolated lab or explicitly authorised environments only. Days with a concept badge overlap topics already covered on another track."
     : "21 days fully detailed. Later phases (Enumeration, Web Exploitation, AD, etc.) unlock and get generated once you're through this phase — this keeps the plan adaptive instead of a stale 300-row wall.";
   return `
   <div class="section-title">Daily Log — ${phaseLabel} <span style="color:var(--text-faint);">(${trackLabel(track)})</span></div>
@@ -1213,20 +1909,25 @@ function renderDaily(m){
     ${state.days.map(d=>renderDayCard(d)).join('')}
   </div>
   ${track==='oscp' ? `<div class="empty-note" style="margin-top:14px;">Phase 2 (Enumeration) generates once Day 21's assessment is marked complete. Just tell me in chat when you're there.</div>` : ''}
+  ${track==='pjpt' ? `<div class="empty-note" style="margin-top:14px;">These are the first 20 PJPT days by design — the curriculum will be extended after these are reviewed. Tell me in chat when you're ready for the next block.</div>` : ''}
   `;
 }
 
+function daysForTrack(tk){ return tk==='ejpt' ? state.ejptDays : tk==='pjpt' ? state.pjptDays : state.oscpDays; }
+
 function otherTrackCoverage(d){
   if(!d.concepts || !d.concepts.length) return null;
-  const otherKey = d.track==='ejpt' ? 'oscp' : 'ejpt';
-  const otherDays = otherKey==='ejpt' ? state.ejptDays : state.oscpDays;
-  const hits = [];
-  d.concepts.forEach(c=>{
-    const match = (otherDays||[]).find(od=>od.completed && (od.concepts||[]).includes(c));
-    if(match) hits.push({concept:c, day:match});
-  });
-  if(!hits.length) return null;
-  return {otherKey, hits};
+  const others = ['oscp','ejpt','pjpt'].filter(tk=>tk!==d.track);
+  for(const otherKey of others){
+    const otherDays = daysForTrack(otherKey);
+    const hits = [];
+    d.concepts.forEach(c=>{
+      const match = (otherDays||[]).find(od=>od.completed && (od.concepts||[]).includes(c));
+      if(match) hits.push({concept:c, day:match});
+    });
+    if(hits.length) return {otherKey, hits};
+  }
+  return null;
 }
 
 function renderDayCard(d){
@@ -1241,7 +1942,7 @@ function renderDayCard(d){
     <div class="dayhead" data-day-toggle="${d.id}">
       <div class="dayhead-left">
         <div class="daynum">DAY ${String(d.day).padStart(2,'0')}</div>
-        <div class="dayinfo"><b>${d.objective}</b><span>${d.topic}</span></div>
+        <div class="dayinfo"><b>${d.objective}</b><span>${d.topic}${d.officialDomain?` · <span style="color:var(--cyan);">${d.officialDomain}</span>`:''}</span></div>
       </div>
       <div class="daymeta">
         <span class="pill phase">${d.phase}</span>
@@ -1260,10 +1961,18 @@ function renderDayCard(d){
           <div class="day-field"><div class="fl">Practical Task</div><div class="fv">${d.practical}</div></div>
         </div>
         <div>
+          ${d.officialDomain?`<div class="day-field"><div class="fl">Official PEH/PJPT Area</div><div class="fv" style="color:var(--cyan);">${d.officialDomain}</div></div>`:''}
           <div class="day-field"><div class="fl">Lab / Machine</div><div class="fv">${d.lab}</div></div>
           <div class="day-field"><div class="fl">Tools / Commands</div><div class="fv">${d.tools}</div></div>
         </div>
       </div>
+      ${(d.commands && d.commands.length)?`
+      <div class="day-field">
+        <div class="fl">Commands <span style="color:var(--amber);font-weight:400;">(lab / authorised targets only)</span></div>
+        <div class="cmd-block">
+          ${d.commands.map(c=>`<div class="cmd-row"><code>${escapeAttr(c.c)}</code>${c.note?`<span class="cmd-note">${c.note}</span>`:''}</div>`).join('')}
+        </div>
+      </div>`:''}
       <div class="day-field">
         <div class="fl">Checklist</div>
         <div class="checklist">
@@ -1275,6 +1984,8 @@ function renderDayCard(d){
           `).join('')}
         </div>
       </div>
+      ${d.exitCriteria?`<div class="day-field"><div class="fl">Exit Criteria</div><div class="fv" style="border-left:2px solid var(--green);padding-left:10px;">${d.exitCriteria}</div></div>`:''}
+      ${d.prompt?`<div class="day-field"><div class="fl">Reflection Prompt</div><div class="fv" style="border-left:2px solid var(--amber);padding-left:10px;">${d.prompt}</div></div>`:''}
       <div class="day-controls">
         <button class="timer-btn ${timerRunning?'running':''}" data-timer-toggle="${d.id}">${timerRunning?'⏸ Stop timer':'▶ Start timer'}</button>
         ${timerRunning ? `<span class="timer-display" data-timer-display="${d.id}">--:--</span>` : ''}
@@ -1310,11 +2021,13 @@ function buildConceptStatus(){
   Object.keys(CONCEPTS_META).forEach(slug=>{
     const oscpDays = state.oscpDays.filter(d=>(d.concepts||[]).includes(slug));
     const ejptDays = state.ejptDays.filter(d=>(d.concepts||[]).includes(slug));
-    if(!oscpDays.length && !ejptDays.length) return;
+    const pjptDays = state.pjptDays.filter(d=>(d.concepts||[]).includes(slug));
+    if(!oscpDays.length && !ejptDays.length && !pjptDays.length) return;
     rows.push({
       slug, label: CONCEPTS_META[slug],
       oscp:{ inTrack: !!oscpDays.length, done: oscpDays.some(d=>d.completed), days: oscpDays },
-      ejpt:{ inTrack: !!ejptDays.length, done: ejptDays.some(d=>d.completed), days: ejptDays }
+      ejpt:{ inTrack: !!ejptDays.length, done: ejptDays.some(d=>d.completed), days: ejptDays },
+      pjpt:{ inTrack: !!pjptDays.length, done: pjptDays.some(d=>d.completed), days: pjptDays }
     });
   });
   return rows;
@@ -1322,25 +2035,23 @@ function buildConceptStatus(){
 
 function renderConcepts(){
   const rows = buildConceptStatus();
-  const mastered = rows.filter(r=>r.oscp.done || r.ejpt.done).length;
-  const shared = rows.filter(r=>r.oscp.inTrack && r.ejpt.inTrack).length;
+  const mastered = rows.filter(r=>r.oscp.done || r.ejpt.done || r.pjpt.done).length;
+  const shared = rows.filter(r=>[r.oscp.inTrack,r.ejpt.inTrack,r.pjpt.inTrack].filter(Boolean).length>1).length;
+  const cell = (tk,st)=>`<div class="concept-status ${!st.inTrack ? '' : (st.done ? 'done' : 'pending')}">${!st.inTrack ? tk+' — n/a' : (st.done ? '✓ '+tk+' done' : '○ '+tk+' pending')}</div>`;
   return `
   <div class="section-title">Concepts — cross-track progress</div>
-  <div class="section-sub">Concepts tagged on both OSCP and eJPT days. Complete either track's day and it's marked done here — and flagged as already-covered on the other track's matching day.</div>
+  <div class="section-sub">Concepts tagged across the OSCP, eJPT and PJPT day plans. Complete any track's day and it's marked done here — and flagged as already-covered on the other tracks' matching days.</div>
   <div class="grid grid-3" style="margin-bottom:16px;">
     <div class="card"><div class="card-label">Tracked Concepts</div><div class="card-value">${rows.length}</div></div>
-    <div class="card"><div class="card-label">Mastered (either track)</div><div class="card-value green">${mastered}</div></div>
-    <div class="card"><div class="card-label">Shared by both tracks</div><div class="card-value amber">${shared}</div></div>
+    <div class="card"><div class="card-label">Mastered (any track)</div><div class="card-value green">${mastered}</div></div>
+    <div class="card"><div class="card-label">Shared by 2+ tracks</div><div class="card-value amber">${shared}</div></div>
   </div>
   ${rows.map(r=>`
     <div class="concept-row">
       <div class="concept-name"><b>${r.label}</b></div>
-      <div class="concept-status ${!r.oscp.inTrack ? '' : (r.oscp.done ? 'done' : 'pending')}">
-        ${!r.oscp.inTrack ? 'OSCP — n/a' : (r.oscp.done ? '✓ OSCP done' : '○ OSCP pending')}
-      </div>
-      <div class="concept-status ${!r.ejpt.inTrack ? '' : (r.ejpt.done ? 'done' : 'pending')}">
-        ${!r.ejpt.inTrack ? 'eJPT — n/a' : (r.ejpt.done ? '✓ eJPT done' : '○ eJPT pending')}
-      </div>
+      ${cell('OSCP',r.oscp)}
+      ${cell('eJPT',r.ejpt)}
+      ${cell('PJPT',r.pjpt)}
     </div>
   `).join('')}
   ${!rows.length ? `<div class="empty-note">No tagged concepts yet.</div>` : ''}
@@ -1591,9 +2302,11 @@ function exportToExcel(){
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dash), "Dashboard");
 
     const daily = state.days.map(d=>({
-      Day:d.day, Phase:d.phase, Objective:d.objective, Topic:d.topic, Subtopics:d.subtopics,
+      Day:d.day, Phase:d.phase, "Official Domain":d.officialDomain||"", Objective:d.objective, Topic:d.topic, Subtopics:d.subtopics,
       "Theory Task":d.theory, "Practical Task":d.practical, "Lab/Machine":d.lab, "Tools/Commands":d.tools,
-      "Checklist (JSON)": JSON.stringify(d.tasks), "Est Hours":d.estHours, "Actual Hours":d.actHours,
+      "Commands (JSON)": JSON.stringify(d.commands||[]), "Exit Criteria":d.exitCriteria||"", "Reflection Prompt":d.prompt||"",
+      "Checklist (JSON)": JSON.stringify(d.tasks), "Concepts (JSON)": JSON.stringify(d.concepts||[]),
+      "Est Hours":d.estHours, "Actual Hours":d.actHours,
       Priority:d.priority, Difficulty:d.difficulty, Confidence:d.confidence, Status:d.status,
       Completed:d.completed, Notes:d.notes
     }));
@@ -1657,13 +2370,20 @@ function importFromExcel(file){
 
       const daily = sheet("Daily Plan");
       if(daily){
+        const curTrack = state.meta.track;
         state.days = daily.map(r=>{
           let tasks = [];
           try{ tasks = JSON.parse(r["Checklist (JSON)"]||"[]"); }catch(_){ tasks = []; }
+          let commands = [];
+          try{ commands = JSON.parse(r["Commands (JSON)"]||"[]"); }catch(_){ commands = []; }
+          let concepts = [];
+          try{ concepts = JSON.parse(r["Concepts (JSON)"]||"[]"); }catch(_){ concepts = []; }
           return {
-            id:r.Day, day:r.Day, phase:r.Phase||"", objective:r.Objective||"", topic:r.Topic||"",
+            id:r.Day, day:r.Day, track:curTrack, phase:r.Phase||"", officialDomain:r["Official Domain"]||"",
+            objective:r.Objective||"", topic:r.Topic||"",
             subtopics:r.Subtopics||"", theory:r["Theory Task"]||"", practical:r["Practical Task"]||"",
-            lab:r["Lab/Machine"]||"", tools:r["Tools/Commands"]||"", tasks:tasks,
+            lab:r["Lab/Machine"]||"", tools:r["Tools/Commands"]||"", commands:commands,
+            exitCriteria:r["Exit Criteria"]||"", prompt:r["Reflection Prompt"]||"", tasks:tasks, concepts:concepts,
             estHours:r["Est Hours"]||"", actHours:r["Actual Hours"]||"", priority:r.Priority||"Medium",
             difficulty:r.Difficulty||"Medium", confidence:r.Confidence||0, status:r.Status||"Not started",
             completed: r.Completed===true || r.Completed==="TRUE" || r.Completed===1, notes:r.Notes||"",
