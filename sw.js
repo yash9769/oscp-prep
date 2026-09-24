@@ -1,4 +1,4 @@
-const CACHE_NAME = "oscp-prep-v3";
+const CACHE_NAME = "oscp-prep-v4";
 const SHELL_FILES = [
   "/",
   "/index.html",
